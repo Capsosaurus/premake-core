@@ -87,7 +87,7 @@ IF NOT EXIST %VsWherePath% (
 	EXIT /B 2
 )
 
-SET VsWhereCmdLine="!VsWherePath! -nologo -latest -version [%VsVersionMin%,%VsVersionMax%) -property installationPath"
+SET VsWhereCmdLine="!VsWherePath! -nologo -latest -version [%VsVersionMin%,%VsVersionMax%) -property installationPath -prerelease"
 
 FOR /F "usebackq delims=" %%i in (`!VsWhereCmdLine!`) DO (
 
@@ -110,7 +110,7 @@ IF EXIST %VsWherePath% (
 
 	REM First try for not legacy Visual Studios ( >vs2017 )
 
-	SET VsWhereCmdLine="!VsWherePath! -nologo -latest -property catalog.productLineVersion"
+	SET VsWhereCmdLine="!VsWherePath! -nologo -latest -property catalog.productLineVersion -prerelease"
 
 	FOR /F "usebackq delims=" %%i in (`!VsWhereCmdLine!`) DO (
 
