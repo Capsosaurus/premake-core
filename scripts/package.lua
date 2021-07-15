@@ -100,9 +100,13 @@
 
 	local pkgName = "premake-" .. version
 	local pkgExt = ".zip"
-
-	if not os.istarget("windows") and kind == "binary" then
-		pkgExt = ".tar.gz"
+	if kind == "binary" then
+		pkgName = pkgName .. "-" .. os.host()
+		if not os.istarget("windows") then
+			pkgExt = ".tar.gz"
+		end
+	else
+		pkgName = pkgName .. "-src"
 	end
 
 
@@ -140,7 +144,7 @@
 -- Bootstrap Premake in the newly cloned repository
 --
 
-	print("Bootstraping Premake...")
+	print("Bootstrapping Premake...")
 	if compilerIsVS then
 		z = os.execute("Bootstrap.bat " .. compiler)
 	else
@@ -184,6 +188,7 @@ if kind == "source" then
 		"clean",
 		"embed",
 		"package",
+		"self-test",
 		"test",
 		"gmake", -- deprecated
 	}
@@ -235,7 +240,7 @@ if kind == "source" then
 	if	not execQuiet("git rm --cached -r -f --ignore-unmatch "..table.concat(excludeList, ' ')) or
 		not execQuiet("git add -f "..table.concat(includeList, ' ')) or
 		not execQuiet("git stash") or
-		not execQuiet("git archive --format=zip -9 -o ../%s-src.zip --prefix=%s/ stash@{0}", pkgName, pkgName) or
+		not execQuiet("git archive --format=zip -9 -o ../%s.zip --prefix=%s/ stash@{0}", pkgName, pkgName) or
 		not execQuiet("git stash drop stash@{0}")
 	then
 		error("failed to archive release", 0)
@@ -247,8 +252,7 @@ end
 
 --
 -- Create a binary package for this platform. This step requires a working
--- GNU/Make/GCC environment. I use MinGW on Windows as it produces the
--- smallest binaries.
+-- GNU/Make/GCC environment.
 --
 
 if kind == "binary" then
@@ -258,14 +262,14 @@ if kind == "binary" then
 	os.chdir("bin/release")
 
 	local addCommand = "git add -f premake5%s"
-	local archiveCommand = "git archive --format=%s -o ../../../%s-%s%s stash@{0} -- ./premake5%s"
+	local archiveCommand = "git archive --format=%s -o ../../../%s%s stash@{0} -- ./premake5%s"
 
 	if os.ishost("windows") then
 		addCommand = string.format(addCommand, ".exe")
-		archiveCommand = string.format(archiveCommand, "zip -9", pkgName, os.host(), pkgExt, ".exe")
+		archiveCommand = string.format(archiveCommand, "zip -9", pkgName, pkgExt, ".exe")
 	else
 		addCommand = string.format(addCommand, "")
-		archiveCommand = string.format(archiveCommand, "tar.gz", pkgName, os.host(), pkgExt, "")
+		archiveCommand = string.format(archiveCommand, "tar.gz", pkgName, pkgExt, "")
 	end
 
 	if 	not execQuiet(addCommand) or

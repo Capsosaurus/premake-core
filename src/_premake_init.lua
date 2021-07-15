@@ -165,6 +165,7 @@
 			"Pure",
 			"Safe",
 			"Unsafe",
+			"NetCore",
 		}
 	}
 
@@ -184,6 +185,9 @@
 			"C++",
 			"Objective-C",
 			"Objective-C++",
+			"Module",
+			"ModulePartition",
+			"HeaderUnit"
 		}
 	}
 
@@ -427,6 +431,12 @@
 		name = "entrypoint",
 		scope = "config",
 		kind = "string",
+	}
+
+	api.register {
+		name = "fastuptodate",
+		scope = "project",
+		kind = "boolean",
 	}
 
 	api.register {
@@ -768,6 +778,8 @@
 			"C++14",
 			"C++1z",
 			"C++17",
+			"C++2a",
+			"C++20",
 			"gnu++98",
 			"gnu++0x",
 			"gnu++11",
@@ -775,6 +787,37 @@
 			"gnu++14",
 			"gnu++1z",
 			"gnu++17",
+			"gnu++2a",
+			"gnu++20",
+		}
+	}
+
+	api.register {
+		name = "conformancemode",
+		scope = "config",
+		kind = "boolean"
+	}
+
+	api.register {
+		name = "usefullpaths",
+		scope = "config",
+		kind = "boolean"
+	}
+
+	api.register {
+		name = "removeunreferencedcodedata",
+		scope = "config",
+		kind = "boolean"
+	}
+
+	api.register {
+		name = "swiftversion",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"4.0",
+			"4.2",
+			"5.0",
 		}
 	}
 
@@ -1211,6 +1254,13 @@
 	}
 
 	api.register {
+		name = "toolsversion",
+		scope = "project",
+		kind = "string",
+		tokens = true,
+	}
+
+	api.register {
 		name = "customtoolnamespace",
 		scope = "config",
 		kind = "string",
@@ -1305,6 +1355,7 @@
 			"Default",
 			"High",
 			"Extra",
+			"Everything",
 		}
 	}
 
@@ -1387,7 +1438,16 @@
 		name = "assemblydebug",
 		scope = "config",
 		kind  = "boolean"
-	}	
+	}
+
+	api.register {
+		name = "justmycode",
+		scope = "project",
+		kind = "string",
+		allowed = {
+			"Off"
+		}
+	}
 
 -----------------------------------------------------------------------------
 --
