@@ -1,14 +1,13 @@
 /**
  * \file   os_compile.c
  * \brief  Compile lua source.
- * \author Copyright (c) 2002-2012 Jason Perkins and the Premake project
+ * \author Copyright (c) 2002-2012 Jess Perkins and the Premake project
  */
 
+#ifdef LUA_STATICLIB
 #include "premake.h"
 #include "lundump.h"
 #include "lstate.h"
-
-extern int original_luaL_loadfilex(lua_State* L, const char* filename, const char* mode);
 
 static int writer(lua_State* L, const void* p, size_t size, void* u)
 {
@@ -19,10 +18,14 @@ static int writer(lua_State* L, const void* p, size_t size, void* u)
 int os_compile(lua_State* L)
 {
 	const char* input = luaL_checkstring(L, 1);
+#if PLATFORM_WINDOWS
+	const wchar_t *output = luaL_checkconvertstring(L, 2);
+#else
 	const char* output = luaL_checkstring(L, 2);
+#endif
 	lua_State* P = luaL_newstate();
 
-	if (original_luaL_loadfilex(P, input, NULL) != LUA_OK)
+	if (luaL_loadfilex(P, input, NULL) != LUA_OK)
 	{
 		const char* msg = lua_tostring(P, -1);
 		if (msg == NULL)
@@ -36,7 +39,15 @@ int os_compile(lua_State* L)
 	}
 	else
 	{
-		FILE* outputFile = (output == NULL) ? stdout : fopen(output, "wb");
+		FILE* outputFile = stdout;
+		if (output != NULL)
+		{
+#if PLATFORM_WINDOWS
+			outputFile = _wfopen(output, L"wb");
+#else
+			outputFile = fopen(output, "wb");
+#endif
+		}
 		if (outputFile == NULL)
 		{
 			lua_close(P);
@@ -54,3 +65,4 @@ int os_compile(lua_State* L)
 		return 1;
 	}
 }
+#endif

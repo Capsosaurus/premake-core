@@ -1,7 +1,7 @@
 --
 -- tests/test_msc.lua
 -- Automated test suite for the Microsoft C toolset interface.
--- Copyright (c) 2012-2013 Jason Perkins and the Premake project
+-- Copyright (c) 2012-2013 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -24,6 +24,29 @@
 	local function prepare()
 		cfg = test.getconfig(prj, "Debug")
 	end
+
+
+--
+-- Check the selection of tools.
+--
+
+	function suite.tools_onDefaults()
+		prepare()
+		test.isequal("cl", msc.gettoolname(cfg, "cc"))
+		test.isequal("cl", msc.gettoolname(cfg, "cxx"))
+		test.isequal("lib", msc.gettoolname(cfg, "ar"))
+		test.isequal("rc", msc.gettoolname(cfg, "rc"))
+	end
+
+	function suite.tools_withMsc()
+		toolset "msc"
+		prepare()
+		test.isequal("cl", msc.gettoolname(cfg, "cc"))
+		test.isequal("cl", msc.gettoolname(cfg, "cxx"))
+		test.isequal("lib", msc.gettoolname(cfg, "ar"))
+		test.isequal("rc", msc.gettoolname(cfg, "rc"))
+	end
+
 
 
 --
@@ -66,12 +89,6 @@
 		test.contains("/Od", msc.getcflags(cfg))
 	end
 
-	function suite.cflags_onNoFramePointers()
-		flags "NoFramePointer"
-		prepare()
-		test.contains("/Oy", msc.getcflags(cfg))
-	end
-
 	function suite.cflags_onOmitFramePointer()
 		omitframepointer "On"
 		prepare()
@@ -84,10 +101,28 @@
 		test.excludes("/Oy", msc.getcflags(cfg))
 	end
 
-	function suite.ldflags_onLinkTimeOptimizations()
-		flags "LinkTimeOptimization"
+	function suite.cflags_onLinkTimeOptimizationsViaAPI()
+		linktimeoptimization "On"
 		prepare()
-		test.contains("/GL", msc.getldflags(cfg))
+		test.contains("/GL", msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onFastLinkTimeOptimizationsViaAPI()
+		linktimeoptimization "Fast"
+		prepare()
+		test.contains("/GL", msc.getcflags(cfg))
+	end
+
+	function suite.ldflags_onLinkTimeOptimizationsViaAPI()
+		linktimeoptimization "On"
+		prepare()
+		test.contains("/LTCG", msc.getldflags(cfg))
+	end
+
+	function suite.ldflags_onFastLinkTimeOptimizationsViaAPI()
+		linktimeoptimization "Fast"
+		prepare()
+		test.contains("/LTCG:incremental", msc.getldflags(cfg))
 	end
 
 	function suite.cflags_onStringPoolingOn()
@@ -106,6 +141,37 @@
 		prepare()
 		test.excludes("/GF", msc.getcflags(cfg))
 		test.excludes("/GF-", msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onStructmemberalign1()
+		structmemberalign(1)
+		prepare()
+		test.contains("/Zp1", msc.getcflags(cfg))
+		test.contains("/Zp1", msc.getcflags(cfg))
+	end
+	function suite.cflags_onStructmemberalign2()
+		structmemberalign(2)
+		prepare()
+		test.contains("/Zp2", msc.getcflags(cfg))
+		test.contains("/Zp2", msc.getcflags(cfg))
+	end
+	function suite.cflags_onStructmemberalign4()
+		structmemberalign(4)
+		prepare()
+		test.contains("/Zp4", msc.getcflags(cfg))
+		test.contains("/Zp4", msc.getcflags(cfg))
+	end
+	function suite.cflags_onStructmemberalign8()
+		structmemberalign(8)
+		prepare()
+		test.contains("/Zp8", msc.getcflags(cfg))
+		test.contains("/Zp8", msc.getcflags(cfg))
+	end
+	function suite.cflags_onStructmemberalign16()
+		structmemberalign(16)
+		prepare()
+		test.contains("/Zp16", msc.getcflags(cfg))
+		test.contains("/Zp16", msc.getcflags(cfg))
 	end
 
 	function suite.cflags_onFloatingPointExceptionsOn()
@@ -224,8 +290,14 @@
 		test.contains("/W4", msc.getcflags(cfg))
 	end
 
-	function suite.cflags_OnFatalWarnings()
-		flags "FatalWarnings"
+	function suite.cflags_OnEverythingWarnings()
+		warnings "Everything"
+		prepare()
+		test.contains("/Wall", msc.getcflags(cfg))
+	end
+
+	function suite.cflags_OnFatalWarningsViaAPI()
+		fatalwarnings { "All" }
 		prepare()
 		test.contains("/WX", msc.getcflags(cfg))
 	end
@@ -238,11 +310,113 @@
 		test.contains({ '/w1"enable"', '/wd"disable"', '/we"fatal"' }, msc.getcflags(cfg))
 	end
 
-	function suite.ldflags_OnFatalWarnings()
-		flags "FatalWarnings"
+	function suite.ldflags_OnFatalWarningsViaAPI()
+		linkerfatalwarnings { "All" }
 		prepare()
 		test.contains("/WX", msc.getldflags(cfg))
 	end
+
+--
+-- Check handling externalwarnings.
+--
+
+	function suite.cflags_onNoExternalWarnings()
+		externalwarnings "Off"
+		prepare()
+		test.contains("/external:W0", msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onHighExternalWarnings()
+		externalwarnings "High"
+		prepare()
+		test.contains("/external:W4", msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onExtraExternalWarnings()
+		externalwarnings "Extra"
+		prepare()
+		test.contains("/external:W4", msc.getcflags(cfg))
+	end
+
+
+--
+-- Check handling externalanglebrackets.
+--
+
+	function suite.cflags_onExternalAngleBrackets()
+		externalanglebrackets "On"
+		prepare()
+		test.contains("/external:anglebrackets", msc.getcflags(cfg))
+	end
+
+
+--
+-- Check handling externalincludedirs.
+--
+
+	function suite.cflags_onExternalIncludeDirs()
+		externalincludedirs { "/usr/local/include" }
+		prepare()
+		test.contains("/I/usr/local/include", msc.getincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs))
+		test.isequal({
+			{ flag = '/I', value = '/usr/local/include' },
+		}, msc.getstructuredincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs))
+	end
+
+	function suite.cflags_onVs2008ExternalIncludeDirs()
+		p.action.set("vs2008")
+		externalincludedirs { "/usr/local/include" }
+		prepare()
+		test.contains("/I/usr/local/include", msc.getincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs))
+		test.isequal({
+			{ flag = '/I', value = '/usr/local/include' },
+		}, msc.getstructuredincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs))
+	end
+
+	function suite.cflags_onVs2022ExternalIncludeDirs()
+		p.action.set("vs2022")
+		externalincludedirs { "/usr/local/include" }
+		prepare()
+		test.contains("/external:W3", msc.getsharedflags(cfg))
+		test.contains("/external:I/usr/local/include", msc.getincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs))
+		test.isequal({
+			{ flag = '/external:I', value = '/usr/local/include' },
+		}, msc.getstructuredincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs))
+	end
+
+--
+-- Check handling includedirsafter.
+--
+
+function suite.cflags_onIncludeDirsAfter()
+	includedirsafter { "/usr/local/include" }
+	prepare()
+	test.contains("/I/usr/local/include", msc.getincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs, cfg.frameworkdirs, cfg.includedirsafter))
+	test.isequal({
+		{ flag = '/I', value = '/usr/local/include' },
+	}, msc.getstructuredincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs, cfg.frameworkdirs, cfg.includedirsafter))
+end
+
+function suite.cflags_onVs2008IncludeDirsAfter()
+	p.action.set("vs2008")
+	includedirsafter { "/usr/local/include" }
+	prepare()
+	test.contains("/I/usr/local/include", msc.getincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs, cfg.frameworkdirs, cfg.includedirsafter))
+	test.isequal({
+		{ flag = '/I', value = '/usr/local/include' },
+	}, msc.getstructuredincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs, cfg.frameworkdirs, cfg.includedirsafter))
+end
+
+function suite.cflags_onVs2022IncludeDirsAfter()
+	p.action.set("vs2022")
+	includedirsafter { "/usr/local/include" }
+	prepare()
+	test.contains("/external:W3", msc.getsharedflags(cfg))
+	test.contains("/external:I/usr/local/include", msc.getincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs, cfg.frameworkdirs, cfg.includedirsafter))
+	test.isequal({
+		{ flag = '/external:I', value = '/usr/local/include' },
+	}, msc.getstructuredincludedirs(cfg, cfg.includedirs, cfg.externalincludedirs, cfg.frameworkdirs, cfg.includedirsafter))
+end
 
 
 --
@@ -266,6 +440,83 @@
 		test.contains('/FIinclude/sys.h', msc.getforceincludes(cfg))
 	end
 
+--
+-- Check handling of cdialect.
+--
+
+	function suite.cdialectC11()
+		cdialect "C11"
+		prepare()
+		test.contains('/std:c11', msc.getcflags(cfg))
+	end
+
+	function suite.cdialectC17()
+		cdialect "C17"
+		prepare()
+		test.contains('/std:c17', msc.getcflags(cfg))
+	end
+
+	function suite.cdialectC23()
+		cdialect "C23"
+		prepare()
+		test.contains('/std:clatest', msc.getcflags(cfg))
+	end
+
+--
+-- Check handling of cppdialect.
+--
+
+	function suite.cppdialectCpp14()
+		cppdialect "C++14"
+		prepare()
+		test.contains('/std:c++14', msc.getcxxflags(cfg))
+	end
+
+	function suite.cppdialectCpp17()
+		cppdialect "C++17"
+		prepare()
+		test.contains('/std:c++17', msc.getcxxflags(cfg))
+	end
+
+	function suite.cppdialectCpp20()
+		cppdialect "C++20"
+		prepare()
+		test.contains('/std:c++20', msc.getcxxflags(cfg))
+	end
+
+	function suite.cppdialectCpp23()
+		cppdialect "C++23"
+		prepare()
+		test.contains('/std:c++23preview', msc.getcxxflags(cfg))
+	end
+
+	function suite.cppdialectCpp26()
+		cppdialect "C++26"
+		prepare()
+		test.contains('/std:c++latest', msc.getcxxflags(cfg))
+	end
+
+	function suite.cppdialectCppLatest()
+		cppdialect "C++latest"
+		prepare()
+		test.contains('/std:c++latest', msc.getcxxflags(cfg))
+	end
+
+--
+-- Check handling of compileas.
+--
+
+	function suite.compileasC()
+		compileas "C"
+		prepare()
+		test.contains('/TC', msc.getsharedflags(cfg))
+	end
+
+	function suite.compileasCPP()
+		compileas "C++"
+		prepare()
+		test.contains('/TP', msc.getsharedflags(cfg))
+	end
 
 --
 -- Check handling of floating point modifiers.
@@ -283,6 +534,12 @@
 		test.contains("/fp:strict", msc.getcflags(cfg))
 	end
 
+	function suite.cflags_onFloatingPointPrecise()
+		floatingpoint "Precise"
+		prepare()
+		test.contains("/fp:precise", msc.getcflags(cfg))
+	end
+
 	function suite.cflags_onSSE()
 		vectorextensions "SSE"
 		prepare()
@@ -294,6 +551,13 @@
 		prepare()
 		test.contains("/arch:SSE2", msc.getcflags(cfg))
 	end
+
+	function suite.cflags_onSSE4_2()
+		vectorextensions "SSE4.2"
+		prepare()
+		test.contains("/arch:SSE2", msc.getcflags(cfg))
+	end
+
 
 	function suite.cflags_onAVX()
 		vectorextensions "AVX"
@@ -307,6 +571,12 @@
 		test.contains("/arch:AVX2", msc.getcflags(cfg))
 	end
 
+	function suite.cflags_onAVX512()
+		vectorextensions "AVX512"
+		prepare()
+		test.contains("/arch:AVX512", msc.getcflags(cfg))
+	end
+
 
 --
 -- Check the defines and undefines.
@@ -315,13 +585,37 @@
 	function suite.defines()
 		defines "DEF"
 		prepare()
+		p.escaper(p.quote)
 		test.contains({ '/D"DEF"' }, msc.getdefines(cfg.defines, cfg))
+		p.escaper()
+		test.contains({ '/DDEF' }, msc.getdefines(cfg.defines, cfg))
+	end
+
+	function suite.definesVar()
+		defines "DEF=42"
+		prepare()
+		p.escaper(p.quote)
+		test.contains({ '/D"DEF=42"' }, msc.getdefines(cfg.defines, cfg))
+		p.escaper()
+		test.contains({ '/DDEF=42' }, msc.getdefines(cfg.defines, cfg))
+	end
+
+	function suite.definesStringVar()
+		defines 'DEF="Hello world"'
+		prepare()
+		p.escaper(p.quote)
+		test.contains({ '/D"DEF=\\"Hello world\\""' }, msc.getdefines(cfg.defines, cfg))
+		p.escaper()
+		test.contains({ '/DDEF="Hello world"' }, msc.getdefines(cfg.defines, cfg))
 	end
 
 	function suite.undefines()
 		undefines "UNDEF"
 		prepare()
+		p.escaper(p.quote)
 		test.contains({ '/U"UNDEF"' }, msc.getundefines(cfg.undefines))
+		p.escaper()
+		test.contains({ '/UUNDEF' }, msc.getundefines(cfg.undefines))
 	end
 
 
@@ -330,13 +624,13 @@
 --
 
 	function suite.cflags_onNoMinimalRebuild()
-		flags "NoMinimalRebuild"
+		minimalrebuild "Off"
 		prepare()
 		test.contains("/Gm-", msc.getcflags(cfg))
 	end
 
 	function suite.cflags_onMultiProcessorCompile()
-		flags "MultiProcessorCompile"
+		multiprocessorcompile "On"
 		prepare()
 		test.contains("/MP", msc.getcflags(cfg))
 	end
@@ -370,25 +664,68 @@
 		test.contains("/GR-", msc.getcxxflags(cfg))
 	end
 
+	function suite.cxxflags_onSanitizeAddress()
+		sanitize { "Address" }
+		prepare()
+		test.contains("/fsanitize=address", msc.getcxxflags(cfg))
+	end
+
+	function suite.cxxflags_onSanitizeFuzzer()
+		sanitize { "Fuzzer" }
+		prepare()
+		test.contains("/fsanitize=fuzzer", msc.getcxxflags(cfg))
+	end
+
+	function suite.cxxflags_onSanitizeAddressFuzzer()
+		sanitize { "Address", "Fuzzer" }
+		prepare()
+		test.contains("/fsanitize=address", msc.getcxxflags(cfg))
+		test.contains("/fsanitize=fuzzer", msc.getcxxflags(cfg))
+	end
+
+--
+-- Check entrypoint linker options.
+--
+
+	function suite.ldflags_entrypoint_windows()
+		kind "WindowedApp"
+		entrypoint "main2"
+		prepare()
+		test.contains("/SUBSYSTEM:WINDOWS", msc.getldflags(cfg))
+		test.contains("/ENTRY:main2", msc.getldflags(cfg))
+	end
+	function suite.ldflags_entrypoint_console()
+		kind "ConsoleApp"
+		entrypoint "main2"
+		prepare()
+		test.contains("/SUBSYSTEM:CONSOLE", msc.getldflags(cfg))
+		test.contains("/ENTRY:main2", msc.getldflags(cfg))
+	end
+	function suite.ldflags_entrypoint_other()
+		entrypoint "main2"
+		prepare()
+		test.contains("/SUBSYSTEM:NATIVE", msc.getldflags(cfg))
+		test.contains("/ENTRY:main2", msc.getldflags(cfg))
+	end
 
 --
 -- Check handling of additional linker options.
 --
 
 	function suite.ldflags_onOmitDefaultLibrary()
-		flags "OmitDefaultLibrary"
+		nodefaultlib "On"
 		prepare()
 		test.contains("/NODEFAULTLIB", msc.getldflags(cfg))
 	end
 
 	function suite.ldflags_onNoIncrementalLink()
-		flags "NoIncrementalLink"
+		incrementallink "Off"
 		prepare()
 		test.contains("/INCREMENTAL:NO", msc.getldflags(cfg))
 	end
 
 	function suite.ldflags_onNoManifest()
-		flags "NoManifest"
+		manifest "Off"
 		prepare()
 		test.contains("/MANIFEST:NO", msc.getldflags(cfg))
 	end
@@ -399,7 +736,37 @@
 		test.contains("/DLL", msc.getldflags(cfg))
 	end
 
+	function suite.ldflags_onProfile()
+		kind "ConsoleApp"
+		profile "On"
+		prepare()
+		test.contains("/PROFILE", msc.getldflags(cfg))
+	end
 
+	function suite.ldflags_onNoProfile()
+		kind "ConsoleApp"
+		profile "Off"
+		prepare()
+		test.missing("/PROFILE", msc.getldflags(cfg))
+	end
+
+	function suite.ldflags_onProfileInvalidKind()
+		kind "StaticLib"
+		profile "On"
+		prepare()
+		test.missing("/PROFILE", msc.getldflags(cfg))
+	end
+
+	function suite.ldflags_wholearchive()
+		system "windows"
+		links { "MyProject2" }
+		wholearchive { "kernel32", "MyProject2" }
+		project "MyProject2"
+		system "windows"
+		kind "StaticLib"
+		prepare()
+		test.isequal({"/NOLOGO", "/DLL", "/WHOLEARCHIVE:kernel32", "/WHOLEARCHIVE:bin/Debug/MyProject2.lib"}, msc.getldflags(cfg))
+	end
 
 --
 -- Check handling of CLR settings.
@@ -436,37 +803,31 @@
 
 	function suite.cflags_onCharSetDefault()
 		prepare()
-		test.contains('/D"_UNICODE"', msc.getdefines(cfg.defines, cfg))
+		test.contains('/D_UNICODE', msc.getdefines(cfg.defines, cfg))
 	end
 
 	function suite.cflags_onCharSetUnicode()
 		characterset "Unicode"
 		prepare()
-		test.contains('/D"_UNICODE"', msc.getdefines(cfg.defines, cfg))
+		test.contains('/D_UNICODE', msc.getdefines(cfg.defines, cfg))
 	end
 
 	function suite.cflags_onCharSetMBCS()
 		characterset "MBCS"
 		prepare()
-		test.contains('/D"_MBCS"', msc.getdefines(cfg.defines, cfg))
+		test.contains('/D_MBCS', msc.getdefines(cfg.defines, cfg))
 	end
 
 	function suite.cflags_onCharSetASCII()
 		characterset "ASCII"
 		prepare()
-		test.excludes({'/D"_MBCS"', '/D"_UNICODE"'}, msc.getdefines(cfg.defines, cfg))
+		test.excludes({'/D_MBCS', '/D_UNICODE'}, msc.getdefines(cfg.defines, cfg))
 	end
 
 
 --
 -- Check handling of system search paths.
 --
-
-	function suite.includeDirs_onSysIncludeDirs()
-		sysincludedirs { "/usr/local/include" }
-		prepare()
-		test.contains("-I/usr/local/include", msc.getincludedirs(cfg, cfg.includedirs, cfg.sysincludedirs))
-	end
 
 	function suite.libDirs_onSysLibDirs()
 		syslibdirs { "/usr/local/lib" }
@@ -496,13 +857,102 @@
 --
 
 	function suite.mixedToolFlags_onCFlags()
-		flags { "FatalCompileWarnings" }
+		fatalwarnings "All"
 		prepare()
-		test.isequal({ "/WX", "/MD" }, msc.getcflags(cfg))
+		test.isequal({ "/WX" }, msc.getcflags(cfg))
 	end
 
 	function suite.mixedToolFlags_onCxxFlags()
-		flags { "FatalCompileWarnings" }
+		fatalwarnings "All"
 		prepare()
-		test.isequal({ "/WX", "/MD", "/EHsc" }, msc.getcxxflags(cfg))
+		test.isequal({ "/WX", "/EHsc" }, msc.getcxxflags(cfg))
+	end
+
+
+--
+-- Check handling of Run-Time Library flags.
+--
+
+	function suite.cflags_onStaticRuntime()
+		staticruntime "On"
+		prepare()
+		test.isequal({ "/MT" }, msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onDynamicRuntime()
+		staticruntime "Off"
+		prepare()
+		test.isequal({ "/MD" }, msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onStaticRuntimeAndDebug()
+		staticruntime "On"
+		runtime "Debug"
+		prepare()
+		test.isequal({ "/MTd" }, msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onDynamicRuntimeAndDebug()
+		staticruntime "Off"
+		runtime "Debug"
+		prepare()
+		test.isequal({ "/MDd" }, msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onStaticRuntimeAndSymbols()
+		staticruntime "On"
+		symbols "On"
+		prepare()
+		test.isequal({ "/MTd", "/Z7" }, msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onDynamicRuntimeAndSymbols()
+		staticruntime "Off"
+		symbols "On"
+		prepare()
+		test.isequal({ "/MDd", "/Z7" }, msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onDynamicRuntimeAndReleaseAndSymbols()
+		staticruntime "Off"
+		runtime "Release"
+		symbols "On"
+		prepare()
+		test.isequal({ "/MD", "/Z7" }, msc.getcflags(cfg))
+	end
+
+	function suite.cflags_onDynamicDebuggingOn()
+		dynamicdebugging "On"
+		prepare()
+		test.contains("/dynamicdeopt", msc.getcflags(cfg))
+	end
+
+	function suite.cxxflags_onDynamicDebuggingOn()
+		dynamicdebugging "On"
+		prepare()
+		test.contains("/dynamicdeopt", msc.getcxxflags(cfg))
+	end
+
+	function suite.cflags_onDynamicDebuggingOff()
+		dynamicdebugging "Off"
+		prepare()
+		test.excludes("/dynamicdeopt", msc.getcflags(cfg))
+	end
+
+	function suite.cxxflags_onDynamicDebuggingOff()
+		dynamicdebugging "Off"
+		prepare()
+		test.excludes("/dynamicdeopt", msc.getcxxflags(cfg))
+	end
+
+	function suite.linkerflags_onDynamicDebuggingOn()
+		dynamicdebugging "On"
+		prepare()
+		test.contains("/dynamicdeopt", msc.getldflags(cfg))
+	end
+
+	function suite.linkerflags_onDynamicDebuggingOff()
+		dynamicdebugging "Off"
+		prepare()
+		test.excludes("/dynamicdeopt", msc.getldflags(cfg))
 	end

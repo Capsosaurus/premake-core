@@ -1,7 +1,7 @@
 --
 -- tests/actions/vstudio/cs2005/test_files.lua
 -- Validate generation of <Files/> block in Visual Studio 2005 .csproj
--- Copyright (c) 2009-2014 Jason Perkins and the Premake project
+-- Copyright (c) 2009-2014 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -18,6 +18,8 @@
 	function suite.setup()
 		p.action.set("vs2005")
 		wks = test.createWorkspace()
+		language "C#"
+		architecture("x86")
 	end
 
 	local function prepare()
@@ -49,7 +51,7 @@
 
 	function suite.PerConfigFile()
 		files { "Hello.cs" }
-		configuration { 'debug' }
+		filter { 'configurations:debug' }
 			files { "HelloTwo.cs" }
 		prepare()
 		test.capture [[
@@ -267,6 +269,35 @@
 		<Resource Include="Hello.ico" />
 		]]
 	end
+
+	function suite.customUserAction()
+		files { "Hello.custom" }
+		filter "files:Hello.custom"
+		buildaction "custom:CustomAction"
+		prepare()
+		test.capture [[
+		<CustomAction Include="Hello.custom" />
+		]]
+	end
+
+	function suite.NoUserAction()
+		files { "Hello.none" }
+		prepare()
+		test.capture [[
+		<None Include="Hello.none" />
+		]]
+	end
+
+	function suite.InvalidUserAction()
+		files { "Hello.oops" }
+		filter "files:Hello.oops"
+		buildaction "Invalid"
+		prepare()
+		test.capture [[
+		<None Include="Hello.oops" />
+		]]
+	end
+
 
 
 --

@@ -1,7 +1,7 @@
 --
 -- clang.lua
 -- Clang toolset adapter for Premake
--- Copyright (c) 2013 Jason Perkins and the Premake project
+-- Copyright (c) 2013 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -42,29 +42,78 @@
 --    An array of C compiler flags.
 --
 
+	clang.getassemblyflags = gcc.getassemblyflags
+
 	clang.shared = {
 		architecture = gcc.shared.architecture,
+		characterset = gcc.shared.characterset,
+		fatalwarnings = {
+			All = "-Werror"
+		},
 		flags = gcc.shared.flags,
 		floatingpoint = {
 			Fast = "-ffast-math",
+			Strict = "-ffp-model=strict",
+			Precise = "-ffp-model=precise"
 		},
 		strictaliasing = gcc.shared.strictaliasing,
-		optimize = {
-			Off = "-O0",
-			On = "-O2",
-			Debug = "-O0",
-			Full = "-O3",
-			Size = "-Os",
-			Speed = "-O3",
-		},
+		openmp = gcc.shared.openmp,
+		optimize = gcc.shared.optimize,
 		pic = gcc.shared.pic,
 		vectorextensions = gcc.shared.vectorextensions,
 		isaextensions = gcc.shared.isaextensions,
 		warnings = gcc.shared.warnings,
+		externalwarnings = gcc.shared.externalwarnings,
 		symbols = gcc.shared.symbols,
 		unsignedchar = gcc.shared.unsignedchar,
 		omitframepointer = gcc.shared.omitframepointer,
-		compileas = gcc.shared.compileas
+		compileas = gcc.shared.compileas,
+		sanitize = table.merge(gcc.shared.sanitize, {
+			Fuzzer = "-fsanitize=fuzzer",
+		}),
+		structmemberalign = gcc.shared.structmemberalign,
+		visibility = gcc.shared.visibility,
+		linktimeoptimization = {
+			On = "-flto",
+			Fast = "-flto=thin",
+		},
+		profile = gcc.shared.profile,
+		useshortenums = gcc.shared.useshortenums,
+	}
+
+	clang.shared.runtime = {
+		_ = function(cfg)
+			if not cfg.runtime and (not cfg.staticruntime or cfg.staticruntime == "Default") then
+				return nil
+			end
+
+			local runtime = cfg.runtime or iif(config.isDebugBuild(cfg), "Debug", "Release")
+			return clang.shared.runtime[runtime](cfg)
+		end,
+
+		Debug = function(cfg)
+			if cfg.system ~= premake.WINDOWS then
+				return nil
+			end
+
+			if cfg.staticruntime == "On" then
+				return "-fms-runtime-lib=static_dbg"
+			end
+
+			return "-fms-runtime-lib=dll_dbg"
+		end,
+
+		Release = function(cfg)
+			if cfg.system ~= premake.WINDOWS then
+				return nil
+			end
+
+			if cfg.staticruntime == "On" then
+				return "-fms-runtime-lib=static"
+			end
+
+			return "-fms-runtime-lib=dll"
+		end,
 	}
 
 	clang.cflags = table.merge(gcc.cflags, {
@@ -75,7 +124,7 @@
 		local cflags = config.mapFlags(cfg, clang.cflags)
 
 		local flags = table.join(shared, cflags)
-		flags = table.join(flags, clang.getwarnings(cfg))
+		flags = table.join(flags, clang.getwarnings(cfg), clang.getsystemversionflags(cfg))
 
 		return flags
 	end
@@ -84,6 +133,28 @@
 		return gcc.getwarnings(cfg)
 	end
 
+--
+-- Returns system version related build flags
+--
+
+	function clang.getsystemversionflags(cfg)
+		local flags = {}
+
+		if cfg.system == p.MACOSX or cfg.system == p.IOS or cfg.system == p.TVOS then
+			local minVersion = p.project.systemversion(cfg)
+			if minVersion ~= nil then
+				local name = "macosx"
+				if cfg.system == p.IOS then
+					name = "iphoneos"
+				elseif cfg.system == p.TVOS then
+					name = "appletvos"
+				end
+				table.insert (flags, "-m" .. name .. "-version-min=" .. p.project.systemversion(cfg))
+			end
+		end
+
+		return flags
+	end
 
 --
 -- Build a list of C++ compiler flags corresponding to the settings
@@ -103,7 +174,7 @@
 		local shared = config.mapFlags(cfg, clang.shared)
 		local cxxflags = config.mapFlags(cfg, clang.cxxflags)
 		local flags = table.join(shared, cxxflags)
-		flags = table.join(flags, clang.getwarnings(cfg))
+		flags = table.join(flags, clang.getwarnings(cfg), clang.getsystemversionflags(cfg))
 		return flags
 	end
 
@@ -119,10 +190,10 @@
 --    An array of symbols with the appropriate flag decorations.
 --
 
-	function clang.getdefines(defines)
+	function clang.getdefines(defines, cfg)
 
 		-- Just pass through to GCC for now
-		local flags = gcc.getdefines(defines)
+		local flags = gcc.getdefines(defines, cfg)
 		return flags
 
 	end
@@ -157,6 +228,24 @@
 
 
 --
+-- Returns the proper precompiled header file for the given configuration.
+-- For GCC-like toolsets, this is the header file path with .gch appended.
+--
+-- @param cfg
+--    The project configuration.
+-- @return
+--    The path to the precompiled header file, relative to the project.
+--
+
+	function clang.getpch(cfg)
+
+		-- Clang uses the same PCH handling as GCC
+		return gcc.getpch(cfg)
+
+	end
+
+
+--
 -- Returns a list of include file search directories, decorated for
 -- the compiler command line.
 --
@@ -165,19 +254,32 @@
 -- @param dirs
 --    An array of include file search directories; as an array of
 --    string values.
+-- @param extdirs
+--    An array of include file search directories for external includes;
+--    as an array of string values.
+-- @param frameworkdirs
+--    An array of file search directories for the framework includes;
+--    as an array of string vlaues
+-- @param includedirsafter
+--    An array of include file search directories for includes after system;
+--    as an array of string values.
 -- @return
 --    An array of symbols with the appropriate flag decorations.
 --
 
-	function clang.getincludedirs(cfg, dirs, sysdirs)
+	function clang.getstructuredincludedirs(cfg, dirs, extdirs, frameworkdirs, includedirsafter)
 
 		-- Just pass through to GCC for now
-		local flags = gcc.getincludedirs(cfg, dirs, sysdirs)
+		local flags = gcc.getstructuredincludedirs(cfg, dirs, extdirs, frameworkdirs, includedirsafter)
 		return flags
 
 	end
 
+	clang.getincludedirs = gcc.getincludedirs
+	clang.getstructuredimplicitincludedirs = gcc.getstructuredimplicitincludedirs
+
 	clang.getrunpathdirs = gcc.getrunpathdirs
+	clang.getsections = gcc.getsections
 
 --
 -- get the right output flag.
@@ -197,18 +299,24 @@
 --
 
 	clang.ldflags = {
-		architecture = {
-			x86 = "-m32",
-			x86_64 = "-m64",
+		architecture = table.merge(gcc.ldflags.architecture, {
+			WASM32 = "-m32",
+			WASM64 = "-m64",
+		}),
+		characterset = gcc.ldflags.characterset,
+		linkerfatalwarnings = {
+			All = "-Wl,--fatal-warnings",
 		},
-		flags = {
-			LinkTimeOptimization = "-flto",
-		},
+		linktimeoptimization = clang.shared.linktimeoptimization,
 		kind = {
 			SharedLib = function(cfg)
 				local r = { clang.getsharedlibarg(cfg) }
-				if cfg.system == "windows" and not cfg.flags.NoImportLib then
-					table.insert(r, '-Wl,--out-implib="' .. cfg.linktarget.relpath .. '"')
+				if cfg.system == "windows" then
+					if cfg.useimportlib ~= p.OFF then
+						table.insert(r, '-Xlinker /IMPLIB:"' .. cfg.linktarget.relpath .. '"')
+					else
+						table.insert(r, '-Xlinker /NOIMPLIB')
+					end
 				elseif cfg.system == p.LINUX then
 					table.insert(r, '-Wl,-soname=' .. p.quoted(cfg.linktarget.name))
 				elseif table.contains(os.getSystemTags(cfg.system), "darwin") then
@@ -220,13 +328,61 @@
 				if cfg.system == p.WINDOWS then return "-mwindows" end
 			end,
 		},
+		linker = gcc.ldflags.linker,
+		mapfile = gcc.ldflags.mapfile,
+		profile = gcc.ldflags.profile,
+		openmp = gcc.ldflags.openmp,
+		sanitize = table.merge(gcc.ldflags.sanitize, {
+			Fuzzer = "-fsanitize=fuzzer",
+		}),
 		system = {
 			wii = "$(MACHDEP)",
 		}
 	}
 
+	-- Clang on windows will link against the static runtime by default, so we need to explicitly tell it not to.
+	clang.ldflags.runtime = {
+		_ = function(cfg)
+			if not cfg.runtime and (not cfg.staticruntime or cfg.staticruntime == "Default") then
+				return nil
+			end
+
+			local runtime = cfg.runtime or iif(config.isDebugBuild(cfg), "Debug", "Release")
+			return clang.ldflags.runtime[runtime](cfg)
+		end,
+
+		Debug = function(cfg)
+			if cfg.system ~= premake.WINDOWS then
+				return nil
+			end
+
+			if cfg.staticruntime == "On" then
+				return "-Xlinker /NODEFAULTLIB:libcmt -fms-runtime-lib=static_dbg"
+			end
+
+			return "-Xlinker /NODEFAULTLIB:libcmt -fms-runtime-lib=dll_dbg"
+		end,
+
+		Release = function(cfg)
+			if cfg.system ~= premake.WINDOWS then
+				return nil
+			end
+
+			if cfg.staticruntime == "On" then
+				return "-fms-runtime-lib=static"
+			end
+
+			return "-Xlinker /NODEFAULTLIB:libcmt -fms-runtime-lib=dll"
+		end,
+	}
+
+	clang.wholearchive = gcc.wholearchive
+
 	function clang.getldflags(cfg)
 		local flags = config.mapFlags(cfg, clang.ldflags)
+
+		flags = table.join(flags, gcc.wholearchive(cfg))
+
 		return flags
 	end
 
@@ -307,9 +463,34 @@
 	clang.tools = {
 		cc = "clang",
 		cxx = "clang++",
-		ar = "ar"
+		ar = function(cfg) return iif(cfg.system == p.WINDOWS or cfg.linktimeoptimization == "On" or cfg.linktimeoptimization == "Fast", "llvm-ar", "ar") end,
+		rc = "windres"
 	}
 
 	function clang.gettoolname(cfg, tool)
-		return clang.tools[tool]
+		local toolset, version = p.tools.canonical(cfg.toolset or p.CLANG)
+		-- Apple toolchains expose their LTO-capable archiver as "ar", without Clang-style version suffixes, nor "llvm-ar".
+		if tool == "ar" and (cfg.system == p.MACOSX or cfg.system == p.IOS or cfg.system == p.TVOS) then
+			return "ar"
+		end
+		local value = clang.tools[tool]
+		if type(value) == "function" then
+			value = value(cfg)
+		end
+		if toolset == p.tools.clang and version ~= nil then
+			value = value .. "-" .. version
+		end
+		return value
+	end
+
+	function clang.gettooloutputext(tool)
+		return gcc.gettooloutputext(tool)
+	end
+
+	function clang.gettoolflags(cfg, tool, input, output, depfile)
+		return gcc.gettoolflags(cfg, tool, input, output, depfile)
+	end
+
+	function clang.getlinkcommand(cfg, linker, output, objects, resources, ldflags, libs)
+		return gcc.getlinkcommand(cfg, linker, output, objects, resources, ldflags, libs)
 	end

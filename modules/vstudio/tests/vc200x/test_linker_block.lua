@@ -1,7 +1,7 @@
 --
 -- tests/actions/vstudio/vc200x/test_linker_block.lua
 -- Validate generation of VCLinkerTool blocks in Visual Studio 200x C/C++ projects.
--- Copyright (c) 2009-2013 Jason Perkins and the Premake project
+-- Copyright (c) 2009-2013 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -127,7 +127,7 @@
 
 	function suite.onC7DebugFormat()
 		symbols "On"
-		debugformat "C7"
+		debugformat("c7")
 		prepare()
 		test.capture [[
 <Tool
@@ -160,11 +160,11 @@
 
 
 --
--- Verify handling of the NoIncrementalLink flag.
+-- Verify handling of incrementallink API.
 --
 
 	function suite.onNoIncrementalLink()
-		flags { "NoIncrementalLink" }
+		incrementallink "Off"
 		prepare()
 		test.capture [[
 <Tool
@@ -232,8 +232,8 @@
 -- then be added to the list.
 --
 
-	function suite.includesSiblings_onNoImplicitLink()
-		flags { "NoImplicitLink" }
+	function suite.includesSiblings_onNoImplicitLink_ViaAPI()
+		implicitlink "Off"
 		links { "MyProject2" }
 		project ("MyProject2")
 		kind "StaticLib"

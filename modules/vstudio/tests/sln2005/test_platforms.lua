@@ -1,13 +1,12 @@
 --
 -- tests/actions/vstudio/sln2005/test_platforms.lua
 -- Test the Visual Studio 2005-2010 platform mapping blocks.
--- Copyright (c) 2009-2014 Jason Perkins and the Premake project
+-- Copyright (c) 2009-2014 Jess Perkins and the Premake project
 --
 
 	local p = premake
 	local suite = test.declare("vstudio_sln2005_platforms")
 	local sln2005 = p.vstudio.sln2005
-
 
 --
 -- Setup
@@ -65,6 +64,48 @@ GlobalSection(ProjectConfigurationPlatforms) = postSolution
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Any CPU.Build.0 = Release|Any CPU
+EndGlobalSection
+		]]
+	end
+
+	function suite.DeployConsoleApp_onUWP()
+		project "MyProject"
+		kind "ConsoleApp"
+		system "uwp"
+		prepare()
+		test.capture [[
+GlobalSection(SolutionConfigurationPlatforms) = preSolution
+	Debug|Win32 = Debug|Win32
+	Release|Win32 = Release|Win32
+EndGlobalSection
+GlobalSection(ProjectConfigurationPlatforms) = postSolution
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.ActiveCfg = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.Build.0 = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.Deploy.0 = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.ActiveCfg = Release|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.Build.0 = Release|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.Deploy.0 = Release|Win32
+EndGlobalSection
+		]]
+	end
+
+	function suite.DeployWindowedApp_onUWP()
+		project "MyProject"
+		kind "WindowedApp"
+		system "uwp"
+		prepare()
+		test.capture [[
+GlobalSection(SolutionConfigurationPlatforms) = preSolution
+	Debug|Win32 = Debug|Win32
+	Release|Win32 = Release|Win32
+EndGlobalSection
+GlobalSection(ProjectConfigurationPlatforms) = postSolution
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.ActiveCfg = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.Build.0 = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.Deploy.0 = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.ActiveCfg = Release|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.Build.0 = Release|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.Deploy.0 = Release|Win32
 EndGlobalSection
 		]]
 	end
@@ -467,16 +508,16 @@ EndGlobalSection
 		prepare()
 		test.capture [[
 GlobalSection(SolutionConfigurationPlatforms) = preSolution
-	Debug|x64 = Debug|x64
 	Debug|x86 = Debug|x86
+	Debug|x64 = Debug|x64
 	Release|x64 = Release|x64
 	Release|x86 = Release|x86
 EndGlobalSection
 GlobalSection(ProjectConfigurationPlatforms) = postSolution
-	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.ActiveCfg = Debug|x64
-	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.Build.0 = Debug|x64
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x86.ActiveCfg = Debug|x86
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x86.Build.0 = Debug|x86
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.ActiveCfg = Debug|x64
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.Build.0 = Debug|x64
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|x64.ActiveCfg = Release|x64
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|x64.Build.0 = Release|x64
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|x86.ActiveCfg = Release|x86
@@ -495,24 +536,24 @@ EndGlobalSection
 		prepare()
 		test.capture [[
 GlobalSection(SolutionConfigurationPlatforms) = preSolution
-	Debug|x64 = Debug|x64
 	Debug|x86 = Debug|x86
+	Debug|x64 = Debug|x64
 	Release|x64 = Release|x64
 	Release|x86 = Release|x86
 EndGlobalSection
 GlobalSection(ProjectConfigurationPlatforms) = postSolution
-	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Debug|x64.ActiveCfg = Debug|x64
-	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Debug|x64.Build.0 = Debug|x64
 	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Debug|x86.ActiveCfg = Debug|x86
 	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Debug|x86.Build.0 = Debug|x86
+	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Debug|x64.ActiveCfg = Debug|x64
+	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Debug|x64.Build.0 = Debug|x64
 	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Release|x64.ActiveCfg = Release|x64
 	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Release|x64.Build.0 = Release|x64
 	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Release|x86.ActiveCfg = Release|x86
 	{52AD9329-0D74-4F66-A213-E649D8CCD737}.Release|x86.Build.0 = Release|x86
-	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.ActiveCfg = Debug|x64
-	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.Build.0 = Debug|x64
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x86.ActiveCfg = Debug|Win32
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x86.Build.0 = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.ActiveCfg = Debug|x64
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.Build.0 = Debug|x64
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|x64.ActiveCfg = Release|x64
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|x64.Build.0 = Release|x64
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|x86.ActiveCfg = Release|Win32
@@ -606,12 +647,12 @@ GlobalSection(SolutionConfigurationPlatforms) = preSolution
 	Release|Windows = Release|Windows
 EndGlobalSection
 GlobalSection(ProjectConfigurationPlatforms) = postSolution
-	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Linux.ActiveCfg = Debug Linux|Win32
-	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Linux.Build.0 = Debug Linux|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Linux.ActiveCfg = Debug Linux|x86
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Linux.Build.0 = Debug Linux|x86
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Windows.ActiveCfg = Debug Windows|Win32
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Windows.Build.0 = Debug Windows|Win32
-	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Linux.ActiveCfg = Release Linux|Win32
-	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Linux.Build.0 = Release Linux|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Linux.ActiveCfg = Release Linux|x86
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Linux.Build.0 = Release Linux|x86
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Windows.ActiveCfg = Release Windows|Win32
 	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Windows.Build.0 = Release Windows|Win32
 EndGlobalSection
@@ -670,11 +711,11 @@ EndGlobalSection
 	end
 
 
-	function suite.onBuildCfgExcludedByFlag()
+	function suite.onBuildCfgExcluded()
 		platforms { "DLL", "Static" }
 		project "MyProject"
 		filter "configurations:Debug"
-		flags "ExcludeFromBuild"
+		excludefrombuild "On"
 		prepare()
 		test.capture [[
 GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -719,11 +760,11 @@ EndGlobalSection
 	end
 
 
-	function suite.onPlatformExcludedByFlag()
+	function suite.onPlatformExcluded()
 		platforms { "DLL", "Static" }
 		project "MyProject"
 		filter "platforms:Static"
-		flags "ExcludeFromBuild"
+		excludefrombuild "On"
 		prepare()
 		test.capture [[
 GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -742,6 +783,7 @@ GlobalSection(ProjectConfigurationPlatforms) = postSolution
 EndGlobalSection
 		]]
 	end
+
 
 	function suite.onExcludedBuildCfg_noPlatforms()
 		project "MyProject"
@@ -762,8 +804,8 @@ EndGlobalSection
 
 
 ---
--- Check that when a default platform is specified it is written in a separate
--- configuration block so that Visual Studio picks it up as default.
+-- Check that when a default platform is specified its selected configuration
+-- is written first so that Visual Studio picks it up as default.
 ---
 
 	function suite.onDefaultPlatforms()
@@ -774,13 +816,111 @@ EndGlobalSection
 		test.capture [[
 GlobalSection(SolutionConfigurationPlatforms) = preSolution
 	Debug|x64 = Debug|x64
+	Debug|Win32 = Debug|Win32
+	Release|Win32 = Release|Win32
 	Release|x64 = Release|x64
 EndGlobalSection
+		]]
+	end
+
+
+---
+-- Check that when a default configuration is specified it is written first so
+-- that Visual Studio picks it up as default.
+---
+
+	function suite.onDefaultConfiguration()
+		defaultconfiguration "Release"
+		project "MyProject"
+		prepare()
+		test.capture [[
+GlobalSection(SolutionConfigurationPlatforms) = preSolution
+	Release|Win32 = Release|Win32
+	Debug|Win32 = Debug|Win32
+EndGlobalSection
+GlobalSection(ProjectConfigurationPlatforms) = postSolution
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.ActiveCfg = Release|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.Build.0 = Release|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.ActiveCfg = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.Build.0 = Debug|Win32
+EndGlobalSection
+		]]
+	end
+
+
+---
+-- Check that default configuration and default platform select the exact pair.
+---
+
+	function suite.onDefaultConfigurationAndDefaultPlatform()
+		platforms { "x86", "x86_64" }
+		defaultconfiguration "Release"
+		defaultplatform "x86_64"
+		project "MyProject"
+		prepare()
+		test.capture [[
+GlobalSection(SolutionConfigurationPlatforms) = preSolution
+	Release|x64 = Release|x64
+	Debug|Win32 = Debug|Win32
+	Debug|x64 = Debug|x64
+	Release|Win32 = Release|Win32
+EndGlobalSection
+GlobalSection(ProjectConfigurationPlatforms) = postSolution
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|x64.ActiveCfg = Release|x64
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|x64.Build.0 = Release|x64
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.ActiveCfg = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.Build.0 = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.ActiveCfg = Debug|x64
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|x64.Build.0 = Debug|x64
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.ActiveCfg = Release|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.Build.0 = Release|Win32
+EndGlobalSection
+		]]
+	end
+
+
+---
+-- Check that invalid defaultconfiguration falls back gracefully.
+-- When defaultconfiguration is invalid but valid configs exist, 
+-- the first config becomes the default in its own block.
+---
+
+	function suite.onInvalidConfiguration()
+		defaultconfiguration "NonExistent"
+		project "MyProject"
+		prepare()
+		test.capture [[
 GlobalSection(SolutionConfigurationPlatforms) = preSolution
 	Debug|Win32 = Debug|Win32
 	Release|Win32 = Release|Win32
 EndGlobalSection
+GlobalSection(ProjectConfigurationPlatforms) = postSolution
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.ActiveCfg = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Debug|Win32.Build.0 = Debug|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.ActiveCfg = Release|Win32
+	{C9135098-6047-8142-B10E-D27E7F73FCB3}.Release|Win32.Build.0 = Release|Win32
+EndGlobalSection
 		]]
+	end
+
+
+---
+-- Check that invalid defaultplatform falls back gracefully.
+-- When defaultplatform is invalid, it creates an empty default block,
+-- then outputs all configs in the second block.
+---
+
+	function suite.onInvalidPlatform()
+		platforms { "x86", "x86_64" }
+		defaultplatform "ARM"
+		project "MyProject"
+		prepare()
+		local actual = p.captured()
+		test.isnil(actual:find("ARM", 1, true))
+		test.isnotnil(actual:find("Debug|Win32 = Debug|Win32", 1, true))
+		test.isnotnil(actual:find("Debug|x64 = Debug|x64", 1, true))
+		test.isnotnil(actual:find("Release|Win32 = Release|Win32", 1, true))
+		test.isnotnil(actual:find("Release|x64 = Release|x64", 1, true))
 	end
 
 ---

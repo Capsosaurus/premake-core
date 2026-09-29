@@ -22,9 +22,14 @@ int http_download(lua_State* L)
 	long responseCode = 0;
 
 	FILE* fp;
+#if PLATFORM_WINDOWS
+	const wchar_t *file = luaL_checkconvertstring(L, 2);
+	fp = _wfopen(file, L"wb");
+	lua_pop(L, 1);
+#else
 	const char* file = luaL_checkstring(L, 2);
-
 	fp = fopen(file, "wb");
+#endif
 	if (!fp)
 	{
 		lua_pushstring(L, "Unable to open file.");
@@ -46,7 +51,7 @@ int http_download(lua_State* L)
 
 	if (curl)
 	{
-		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
+		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 		curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_file_cb);
 
@@ -68,7 +73,7 @@ int http_download(lua_State* L)
 		lua_pushstring(L, "OK");
 	}
 
-	buffer_destroy(&state.S);
+	premake_buffer_destroy(&state.S);
 	lua_pushnumber(L, (lua_Number)responseCode);
 	return 2;
 }

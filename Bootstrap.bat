@@ -9,11 +9,32 @@ SET VsWherePath="C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswher
 
 REM ===========================================================================
 
+SET "PlatformArg="
+SET "ConfigArg="
+
+IF "%PLATFORM%" == "" (
+	IF "%PROCESSOR_ARCHITECTURE%" == "AMD64" (
+		SET "PLATFORM=x64"
+	) ELSE IF "%PROCESSOR_ARCHITECTURE%" == "ARM64" (
+		SET "PLATFORM=ARM64"
+	) ELSE (
+		SET "PLATFORM=Win32"
+	)
+)
+
+SET "PlatformArg=PLATFORM=%PLATFORM%"
+
+IF NOT "%CONFIG%" == "" (
+	SET "ConfigArg=CONFIG=%CONFIG%"
+)
+
 SET vsversion=%1
 IF "%vsversion%" == "" (
 	CALL :BootstrapLatest
 	EXIT /B %ERRORLEVEL%
 )
+
+SET PREMAKE_OPTS=%2
 
 IF "%vsversion%" == "vs2010" (
 	CALL :LegacyVisualBootstrap "%vsversion%" "100"
@@ -28,10 +49,22 @@ IF "%vsversion%" == "vs2010" (
 	CALL :LegacyVisualBootstrap "%vsversion%" "140"
 
 ) ELSE IF "%vsversion%" == "vs2017" (
-	CALL :VsWhereVisualBootstrap "%vsversion%" "15.0" "16.0"
+	CALL :VsWhereVisualBootstrap "%vsversion%" "15.0" "16.0" %PREMAKE_OPTS%
 
 ) ELSE IF "%vsversion%" == "vs2019" (
-	CALL :VsWhereVisualBootstrap "%vsversion%" "16.0" "17.0"
+	CALL :VsWhereVisualBootstrap "%vsversion%" "16.0" "17.0" %PREMAKE_OPTS%
+
+) ELSE IF "%vsversion%" == "vs2022" (
+	CALL :VsWhereVisualBootstrap "%vsversion%" "17.0" "18.0" %PREMAKE_OPTS%
+
+) ELSE IF "%vsversion%" == "vs18" (
+	CALL :VsWhereVisualBootstrap "vs2026" "18.0" "19.0"
+
+) ELSE IF "%vsversion%" == "gmake" (
+	CALL :VsWhereVisualBootstrap "gmake" "15.0" "99.0" %PREMAKE_OPTS%
+
+) ELSE IF "%vsversion%" == "ninja" (
+	CALL :VsWhereVisualBootstrap "ninja" "15.0" "99.0" %PREMAKE_OPTS%
 
 ) ELSE (
 	ECHO Unrecognized Visual Studio version %vsversion%
@@ -64,7 +97,7 @@ IF NOT EXIST "%VsPath%vsdevcmd.bat" (
 	EXIT /B 2
 )
 
-CALL "%VsPath%vsdevcmd.bat" && nmake MSDEV="%~1" -f Bootstrap.mak windows
+CALL "%VsPath%vsdevcmd.bat" && nmake MSDEV="%~1" %PlatformArg% %ConfigArg% -f Bootstrap.mak windows
 EXIT /B %ERRORLEVEL%
 
 REM :LegacyVisualBootstrap
@@ -79,6 +112,7 @@ REM %3: VisualStudio-style VSversionMax -> ex: 16.0
 SET "PremakeVsVersion=%~1"
 SET "VsVersionMin=%~2"
 SET "VsVersionMax=%~3"
+SET PREMAKE_OPTS=%4
 
 REM ref: https://github.com/Microsoft/vswhere/wiki/Start-Developer-Command-Prompt
 
@@ -90,17 +124,42 @@ IF NOT EXIST %VsWherePath% (
 SET VsWhereCmdLine="!VsWherePath! -nologo -latest -version [%VsVersionMin%,%VsVersionMax%) -property installationPath -prerelease"
 
 FOR /F "usebackq delims=" %%i in (`!VsWhereCmdLine!`) DO (
-
-	IF EXIST "%%i\VC\Auxiliary\Build\vcvars32.bat" (
-		CALL "%%i\VC\Auxiliary\Build\vcvars32.bat" && nmake MSDEV="%PremakeVsVersion%" -f Bootstrap.mak windows
-		EXIT /B %ERRORLEVEL%
+	IF /I "%PLATFORM%" == "ARM64" (
+		IF EXIST "%%i\VC\Auxiliary\Build\vcvarsarm64.bat" (
+			CALL "%%i\VC\Auxiliary\Build\vcvarsarm64.bat" && CALL :Build
+			EXIT /B !ERRORLEVEL!
+		)
+	)
+	IF EXIST "%%i\VC\Auxiliary\Build\vcvars64.bat" (
+		CALL "%%i\VC\Auxiliary\Build\vcvars64.bat" && CALL :Build
+		EXIT /B !ERRORLEVEL!
+	) ELSE (
+		IF EXIST "%%i\VC\Auxiliary\Build\vcvars32.bat" (
+			CALL "%%i\VC\Auxiliary\Build\vcvars32.bat" && CALL :Build
+			EXIT /B !ERRORLEVEL!
+		)
 	)
 )
 
-ECHO Could not find vcvars32.bat to setup Visual Studio environment
+ECHO Could not find a suitable vcvars batch file to setup Visual Studio environment
 EXIT /B 2
 
 REM :VsWhereVisualBootstrap
+
+REM ===========================================================================
+
+:Build
+
+IF "%PremakeVsVersion%" == "gmake" (
+	make -f Bootstrap.mak windows-gmake SHELL=cmd.exe %PlatformArg% %ConfigArg% %PREMAKE_OPTS%
+) ELSE IF "%PremakeVsVersion%" == "ninja" (
+	nmake -f Bootstrap.mak windows-ninja %PlatformArg% %ConfigArg% %PREMAKE_OPTS%
+) ELSE (
+	nmake MSDEV="%PremakeVsVersion%" %PlatformArg% %ConfigArg% %PREMAKE_OPTS% -f Bootstrap.mak windows
+)
+EXIT /B %ERRORLEVEL%
+
+REM :Build
 
 REM ===========================================================================
 
@@ -116,7 +175,7 @@ IF EXIST %VsWherePath% (
 
 		CALL %SelfPath% vs%%i
 
-		EXIT /B %ERRORLEVEL%
+		EXIT /B !ERRORLEVEL!
 	)
 
 )
@@ -146,7 +205,7 @@ SET PremakeVsVersion=%PremakeVsVersion:;=&REM.%
 
 IF NOT "%PremakeVsVersion%" == "" (
 	CALL %SelfPath% %PremakeVsVersion%
-	EXIT /B %ERRORLEVEL%
+	EXIT /B !ERRORLEVEL!
 )
 
 ECHO Could not find a Visual Studio installation

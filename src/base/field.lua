@@ -9,7 +9,7 @@
 -- The field.* functions here manage the definition of these fields, and the
 -- accessor functions required to get, set, remove, and merge their values.
 --
--- Copyright (c) 2014 Jason Perkins and the Premake project
+-- Copyright (c) 2014 Jess Perkins and the Premake project
 ---
 
 	local p = premake
@@ -387,5 +387,18 @@
 
 	function field.translates(f)
 		return (field.accessor(f, "translate") ~= nil)
+	end
+
+	
+	function field.resolvealias(key, value)
+		value = value:lower()
+		local f = field.get(key)
+		if f and f.aliases then
+			local alias = f.aliases[value]
+			if alias then
+				return tostring(alias):lower()
+			end
+		end
+		return value
 	end
 

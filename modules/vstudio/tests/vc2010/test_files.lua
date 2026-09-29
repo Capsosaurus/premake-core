@@ -1,7 +1,7 @@
 --
 -- tests/actions/vstudio/vc2010/test_files.lua
 -- Validate generation of files block in Visual Studio 2010 C/C++ projects.
--- Copyright (c) 2011-2014 Jason Perkins and the Premake project
+-- Copyright (c) 2011-2014 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -89,16 +89,31 @@
 		]]
 	end
 
+	function suite.appxManifestCompile_onAppxManifestFile()
+		files { "hello.appxmanifest" }
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<AppxManifest Include="hello.appxmanifest">
+		<FileType>Document</FileType>
+		<SubType>Designer</SubType>
+	</AppxManifest>
+</ItemGroup>
+		]]
+	end
+
 
 --
 -- Check handling of buildaction.
 --
 	function suite.customBuildTool_onBuildAction()
-		files { "test.x", "test2.cpp", "test3.cpp" }
+		files { "test.x", "test2.cpp", "test3.cpp", "test4.dll" }
 		filter "files:**.x"
 			buildaction "FxCompile"
 		filter "files:test2.cpp"
 			buildaction "None"
+		filter { "files:test4.dll" }
+			buildaction "Copy"
 		prepare()
 		test.capture [[
 <ItemGroup>
@@ -109,6 +124,12 @@
 </ItemGroup>
 <ItemGroup>
 	<None Include="test2.cpp" />
+</ItemGroup>
+<ItemGroup>
+	<CopyFileToFolders Include="test4.dll">
+		<DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">bin\Debug</DestinationFolders>
+		<DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">bin\Release</DestinationFolders>
+	</CopyFileToFolders>
 </ItemGroup>
 		]]
 	end
@@ -228,10 +249,22 @@
 		]]
 	end
 
-	function suite.excludedFromBuild_onExcludeFlag()
+	function suite.excludedFromBuild_onBuildActionNone()
 		files { "hello.cpp" }
 		filter "files:hello.cpp"
-		flags { "ExcludeFromBuild" }
+		buildaction "None"
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<None Include="hello.cpp" />
+</ItemGroup>
+		]]
+	end
+
+	function suite.excludedFromBuild_onAPI()
+		files { "hello.cpp" }
+		filter "files:hello.cpp"
+		excludefrombuild "On"
 		prepare()
 		test.capture [[
 <ItemGroup>
@@ -241,6 +274,7 @@
 </ItemGroup>
 		]]
 	end
+
 
 	function suite.excludedFromBuild_onResourceFile_excludedFile()
 		files { "hello.rc" }
@@ -256,10 +290,22 @@
 		]]
 	end
 
-	function suite.excludedFromBuild_onResourceFile_excludeFlag()
+	function suite.excludedFromBuild_onResourceFile_buildActionNone()
 		files { "hello.rc" }
 		filter "files:hello.rc"
-		flags { "ExcludeFromBuild" }
+		buildaction "None"
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<None Include="hello.rc" />
+</ItemGroup>
+		]]
+	end
+
+	function suite.excludedFromBuild_onResourceFile_viaAPI()
+		files { "hello.rc" }
+		filter "files:hello.rc"
+		excludefrombuild "On"
 		prepare()
 		test.capture [[
 <ItemGroup>
@@ -270,11 +316,11 @@
 		]]
 	end
 
-	function suite.excludedFromBuild_onResourceFile_excludeFlag_nonWindows()
+	function suite.excludedFromBuild_onResourceFile_viaAPI_nonWindows()
 		files { "hello.rc" }
 		system "Linux"
 		filter "files:hello.rc"
-		flags { "ExcludeFromBuild" }
+		excludefrombuild "On"
 		prepare()
 		test.capture [[
 <ItemGroup>
@@ -315,12 +361,12 @@
 		]]
 	end
 
-	function suite.excludedFromBuild_onCustomBuildRule_excludeFlag()
+	function suite.excludedFromBuild_onCustomBuildRule_excludeAPI()
 		files { "hello.cg" }
 		filter "files:**.cg"
 			buildcommands { "cgc $(InputFile)" }
 			buildoutputs { "$(InputName).obj" }
-			flags { "ExcludeFromBuild" }
+			excludefrombuild "On"
 		prepare()
 		test.capture [[
 <ItemGroup>
@@ -334,13 +380,13 @@
 		]]
 	end
 
-	function suite.excludedFromBuild_onCustomBuildRule_withNoCommands()
+	function suite.excludedFromBuild_onCustomBuildRule_withNoCommands_excludeViaAPI()
 		files { "hello.cg" }
 		filter { "files:**.cg", "Debug" }
 			buildcommands { "cgc $(InputFile)" }
 			buildoutputs { "$(InputName).obj" }
 		filter { "files:**.cg" }
-			flags { "ExcludeFromBuild" }
+			excludefrombuild "On"
 		prepare()
 		test.capture [[
 <ItemGroup>
@@ -429,6 +475,62 @@
 	<ClCompile Include="greetings\hello.cpp" />
 	<ClCompile Include="hello.cpp">
 		<ObjectFileName>$(IntDir)\hello1.obj</ObjectFileName>
+	</ClCompile>
+</ItemGroup>
+		]]
+	end
+
+	function suite.assemblyOutput_onSourceNameCollision()
+		toolset "msc"
+		files { "hello.cpp", "greetings/hello.cpp" }
+		filter "files:**.cpp"
+		generateassembly "On"
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<ClCompile Include="greetings\hello.cpp">
+		<AssemblerListingLocation>$(IntDir)\hello.asm</AssemblerListingLocation>
+		<AssemblerOutput>AssemblyCode</AssemblerOutput>
+	</ClCompile>
+	<ClCompile Include="hello.cpp">
+		<ObjectFileName>$(IntDir)\hello1.obj</ObjectFileName>
+		<AssemblerListingLocation>$(IntDir)\hello1.asm</AssemblerListingLocation>
+		<AssemblerOutput>AssemblyCode</AssemblerOutput>
+	</ClCompile>
+</ItemGroup>
+		]]
+	end
+
+	function suite.assemblyOutput_onConfigAndFileOverride()
+		toolset "msc"
+		files { "hello.cpp", "main.cpp" }
+		generateassembly "On"
+		filter "files:main.cpp"
+		generateassembly "Off"
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<ClCompile Include="hello.cpp">
+		<AssemblerListingLocation>$(IntDir)\hello.asm</AssemblerListingLocation>
+	</ClCompile>
+	<ClCompile Include="main.cpp">
+		<AssemblerOutput>NoListing</AssemblerOutput>
+	</ClCompile>
+</ItemGroup>
+		]]
+	end
+
+	function suite.assemblyOutputVerbose_onClangToolset()
+		toolset "clang"
+		files { "main.cpp" }
+		filter "files:main.cpp"
+		generateassembly "Verbose"
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<ClCompile Include="main.cpp">
+		<AssemblerListingLocation>$(IntDir)\main.asm</AssemblerListingLocation>
+		<AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
 	</ClCompile>
 </ItemGroup>
 		]]
@@ -636,6 +738,67 @@
 		]]
 	end
 
+	function suite.onCompileAsExt()
+		files { "hello.unknown_ext" }
+		filter "files:hello.unknown_ext"
+			compileas "C++"
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<ClCompile Include="hello.unknown_ext">
+		<CompileAs>CompileAsCpp</CompileAs>
+		]]
+	end
+
+--
+-- Check handling of per-file cdialect.
+--
+	function suite.onCDialect()
+		p.action.set("vs2019")
+		cdialect "c11"
+		files { "file.c", "file11.c", "file17.c" }
+		filter "files:file11.c"
+			cdialect "c11"
+		filter "files:file17.c"
+			cdialect "c17"
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<ClCompile Include="file.c" />
+	<ClCompile Include="file11.c">
+		<LanguageStandard_C>stdc11</LanguageStandard_C>
+	</ClCompile>
+	<ClCompile Include="file17.c">
+		<LanguageStandard_C>stdc17</LanguageStandard_C>
+	</ClCompile>
+  <ItemGroup>]]
+	end
+
+--
+-- Check handling of per-file cppdialect.
+--
+	function suite.onCppDialect()
+		p.action.set("vs2017")
+		cppdialect "c++14"
+		files { "file.cpp", "file14.cpp", "file17.cpp" }
+		filter "files:file14.cpp"
+			cppdialect "c++14"
+		filter "files:file17.cpp"
+			cppdialect "c++17"
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<ClCompile Include="file.cpp" />
+	<ClCompile Include="file14.cpp">
+		<LanguageStandard>stdcpp14</LanguageStandard>
+	</ClCompile>
+	<ClCompile Include="file17.cpp">
+		<LanguageStandard>stdcpp17</LanguageStandard>
+	</ClCompile>
+  <ItemGroup>]]
+	end
+
+
 --
 -- Check handling of per-file optimization levels.
 --
@@ -754,7 +917,7 @@
 	function suite.excludedFromPCH()
 		files { "hello.cpp" }
 		filter "files:**.cpp"
-		flags { "NoPCH" }
+		enablepch "Off"
 		prepare()
 		test.capture [[
 <ItemGroup>
@@ -899,6 +1062,40 @@
 	<ClCompile Include="hello.cpp">
 		<WarningLevel>Level4</WarningLevel>
 	</ClCompile>
+	<ClCompile Include="hello2.cpp" />
+</ItemGroup>
+		]]
+	end
+
+--
+-- test consumewinrtextension set for a single file
+--
+
+	function suite.consumewinrtextensionPerFile()
+		p.action.set("vs2019")
+		files { "hello.cpp", "hello2.cpp" }
+		filter { "files:hello.cpp" }
+			consumewinrtextension 'On'
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<ClCompile Include="hello.cpp">
+		<CompileAsWinRT>true</CompileAsWinRT>
+	</ClCompile>
+	<ClCompile Include="hello2.cpp" />
+</ItemGroup>
+		]]
+	end
+
+	function suite.consumewinrtextensionPerFile_BeforeVS2019()
+		p.action.set("vs2017")
+		files { "hello.cpp", "hello2.cpp" }
+		filter { "files:hello.cpp" }
+			consumewinrtextension 'On'
+		prepare()
+		test.capture [[
+<ItemGroup>
+	<ClCompile Include="hello.cpp" />
 	<ClCompile Include="hello2.cpp" />
 </ItemGroup>
 		]]

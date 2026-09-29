@@ -1,7 +1,7 @@
 --
 -- vs2010_nuget.lua
 -- Generate a NuGet packages.config file.
--- Copyright (c) Jason Perkins and the Premake project
+-- Copyright (c) Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -31,7 +31,12 @@
 		if p.project.isdotnet(prj) then
 			local cfg = p.project.getfirstconfig(prj)
 			local action = p.action.current()
-			local framework = cfg.dotnetframework or action.vstudio.targetFramework
+			local framework = nil
+			if #cfg.dotnetframework > 0 then
+				framework = cfg.dotnetframework[#cfg.dotnetframework]
+			else
+				framework = action.vstudio.targetFramework
+			end
 			return dn2005.formatNuGetFrameworkVersion(framework)
 		else
 			return "native"
@@ -49,6 +54,10 @@
 --
 
 	function nuget2010.packageAPIInfo(prj, package)
+		if packageAPIInfos[package] then
+			return packageAPIInfos[package]
+		end
+
 		local id = nuget2010.packageId(package)
 		local version = nuget2010.packageVersion(package)
 
@@ -56,26 +65,17 @@
 		-- that case we can examine the nuspec file and the file listing
 		-- locally.
 
-		local function examinePackageFromCache()
-			-- It should be possible to implement this for platforms other than
-			-- Windows, but we'll need to figure out where the NuGet cache is on
-			-- these platforms (or if they even have one).
-
-			if not os.ishost("windows") then
-				return
-			end
-
-			local cachePath = path.translate(path.join(os.getenv("userprofile"), ".nuget/packages", id))
-
-			if os.isdir(cachePath) then
+		local function examinePackageFromDirectory(directory)
+			if os.isdir(directory) then
 				local packageAPIInfo = {}
 
-				printf("Examining cached NuGet package '%s'...", id)
+				printf("Examining NuGet package '%s' from '%s'...", id, path.translate(directory))
 				io.flush()
 
-				local versionPath = path.translate(path.join(cachePath, version))
+				local versionPath = path.translate(path.join(directory, version))
 
 				local nuspecPath = path.translate(path.join(versionPath, id .. ".nuspec"))
+				local nupkgPath = path.translate(path.join(versionPath, id .. "." .. version .. ".nupkg"))
 
 				if not os.isfile(nuspecPath) then
 					return
@@ -94,15 +94,23 @@
 					return
 				end
 
-				if p.project.isdotnet(prj) then
-					-- Using the local file listing for "packageEntries" might
-					-- not exactly match what we would get from the API but this
-					-- doesn't matter. At the moment of writing, we're only
-					-- interested in knowing what DLL files the package
-					-- contains.
+				-- Using the local file listing for "packageEntries" might
+				-- not exactly match what we would get from the API but this
+				-- doesn't matter. At the moment of writing, we're only
+				-- interested in knowing what DLL files the package
+				-- contains.
 
-					packageAPIInfo.packageEntries = {}
+				packageAPIInfo.packageEntries = {}
 
+				if zip then
+					local entries, err = zip.list(nupkgPath)
+
+					if err ~= nil then
+						p.warn("Cannot list entries of '" .. nupkgPath "'")
+					else
+						packageAPIInfo.packageEntries = entries
+					end
+				else
 					for _, file in ipairs(os.matchfiles(path.translate(path.join(versionPath, "**")))) do
 						local extension = path.getextension(file)
 
@@ -110,15 +118,16 @@
 							table.insert(packageAPIInfo.packageEntries, path.translate(path.getrelative(versionPath, file)))
 						end
 					end
-
-					if #packageAPIInfo.packageEntries == 0 then
-						return
-					end
-
-					if nuspec:match("<frameworkAssemblies>(.+)</frameworkAssemblies>") then
-						p.warn("NuGet package '%s' may depend on .NET Framework assemblies - package dependencies are currently unimplemented", id)
-					end
 				end
+
+				if #packageAPIInfo.packageEntries == 0 then
+					return
+				end
+
+				if nuspec:match("<frameworkAssemblies>(.+)</frameworkAssemblies>") then
+					p.warn("NuGet package '%s' may depend on .NET Framework assemblies - package dependencies are currently unimplemented", id)
+				end
+
 
 				if nuspec:match("<dependencies>(.+)</dependencies>") then
 					p.warn("NuGet package '%s' may depend on other packages - package dependencies are currently unimplemented", id)
@@ -128,8 +137,28 @@
 			end
 		end
 
+		if os.isdir(prj.nugetsource) then
+			examinePackageFromDirectory(path.join(prj.nugetsource, id))
+
+			if packageAPIInfos[package] then
+				return packageAPIInfos[package]
+			else
+				p.error("Cannot find package '" .. package .. "' in local directory: " .. prj.nugetsource)
+			end
+		end
+
 		if not packageAPIInfos[package] then
-			examinePackageFromCache()
+			-- Examine package from cache directory
+
+			-- It should be possible to implement this for platforms other than
+			-- Windows, but we'll need to figure out where the NuGet cache is on
+			-- these platforms (or if they even have one).
+
+			if os.ishost("windows") then
+				local cachePath = path.join(os.getenv("userprofile"), ".nuget/packages", id)
+				examinePackageFromDirectory(cachePath)
+			end
+
 		end
 
 		-- If we didn't find the package from the cache, use the NuGet API
@@ -225,11 +254,30 @@
 
 			for _, page in ipairs(response.items) do
 				if not page.items or #page.items == 0 then
-					p.error("Failed to understand NuGet API response (got a page with no items for package '%s')", id)
-				end
+					local itemResponse, err, code = http.get(page["@id"])
+					if err ~= "OK" then
+						if code == 404 then
+							p.error("NuGet package '%s' for project '%s' couldn't be found in the repository", id, prj.name)
+						else
+							p.error("NuGet API error (%d)\n%s", code, err)
+						end
+					end
 
-				for _, item in ipairs(page.items) do
-					table.insert(items, item)
+					itemResponse, err = json.decode(itemResponse)
+					if not itemResponse then
+						p.error("Failed to decode NuGet API response (%s)", err)
+					end
+					if not itemResponse.items or #itemResponse.items == 0 then
+						p.error("Failed to understand NuGet API response (got a page with no items for package '%s')", id)
+					end
+
+					for _, item in ipairs(itemResponse.items) do
+						table.insert(items, item)
+					end
+				else
+					for _, item in ipairs(page.items) do
+						table.insert(items, item)
+					end
 				end
 			end
 
@@ -283,33 +331,30 @@
 					packageAPIInfo.verbatimVersion = response.verbatimVersion
 					packageAPIInfo.version = response.version
 
-					-- C++ packages don't have this, but C# packages have a
 					-- packageEntries field that lists all the files in the
 					-- package. We need to look at this to figure out what
 					-- DLLs to reference in the project file.
 
-					if prj.language == "C#" and not response.packageEntries then
+					if not response.packageEntries then
 						p.error("NuGet package '%s' version '%s' has no file listing. This package might be too old to be using this API or it might be a C++ package instead of a .NET Framework package.", id, response.version)
 					end
 
-					if prj.language == "C#" then
-						packageAPIInfo.packageEntries = {}
+					packageAPIInfo.packageEntries = {}
 
-						for _, item in ipairs(response.packageEntries) do
-							if not item.fullName then
-								p.error("Failed to understand NuGet API response (package '%s' version '%s' packageEntry has no fullName)", id, version)
-							end
-
-							table.insert(packageAPIInfo.packageEntries, path.translate(item.fullName))
+					for _, item in ipairs(response.packageEntries) do
+						if not item.fullName then
+							p.error("Failed to understand NuGet API response (package '%s' version '%s' packageEntry has no fullName)", id, version)
 						end
 
-						if #packageAPIInfo.packageEntries == 0 then
-							p.error("NuGet package '%s' file listing is empty", id)
-						end
+						table.insert(packageAPIInfo.packageEntries, path.translate(item.fullName))
+					end
 
-						if response.frameworkAssemblyGroup then
-							p.warn("NuGet package '%s' may depend on .NET Framework assemblies - package dependencies are currently unimplemented", id)
-						end
+					if #packageAPIInfo.packageEntries == 0 then
+						p.error("NuGet package '%s' file listing is empty", id)
+					end
+
+					if response.frameworkAssemblyGroup then
+						p.warn("NuGet package '%s' may depend on .NET Framework assemblies - package dependencies are currently unimplemented", id)
 					end
 
 					if response.dependencyGroups then
@@ -414,7 +459,7 @@
 
 	function nuget2010.NuGetHasHTTP(prj)
 		if not http and #prj.nuget > 0 and not nuget2010.supportsPackageReferences(prj) then
-			p.error("Premake was compiled with --no-curl, but Curl is required for NuGet support (project '%s' is referencing NuGet packages)", prj.name)
+			p.error("Premake was compiled with --curl-src=none, but Curl is required for NuGet support (project '%s' is referencing NuGet packages)", prj.name)
 		end
 	end
 

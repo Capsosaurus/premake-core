@@ -1,7 +1,7 @@
 /**
  * \file   path_isabsolute.c
  * \brief  Determines if a path is absolute or relative.
- * \author Copyright (c) 2002-2016 Jason Perkins and the Premake project
+ * \author Copyright (c) 2002-2016 Jess Perkins and the Premake project
  */
 
 #include "premake.h"
@@ -23,7 +23,7 @@ int do_absolutetype(const char* path)
 		path++;
 	if (path[0] == '/' || path[0] == '\\')
 		return JOIN_ABSOLUTE;
-	if (isalpha(path[0]) && path[1] == ':')
+	if (isalpha((int)path[0]) && path[1] == ':')
 		return JOIN_ABSOLUTE;
 
 	// $(foo) and %(foo)

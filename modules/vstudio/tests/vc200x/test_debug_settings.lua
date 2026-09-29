@@ -1,7 +1,7 @@
 --
 -- tests/actions/vstudio/vc200x/test_debugdir.lua
 -- Validate handling of the working directory for debugging.
--- Copyright (c) 2011-2013 Jason Perkins and the Premake project
+-- Copyright (c) 2011-2013 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -122,13 +122,12 @@ Environment="key=value&#x0A;foo=bar"
 
 
 --
--- Make sure that environment merging is turned off if the build
--- flag is set.
+-- Make sure that debugenvsmerge API works correctly.
 --
 
-	function suite.environmentVarsSet_onDebugEnvsAndDebugEnvsDontMerge()
+	function suite.environmentVarsSet_onDebugEnvsAndDebugEnvsMergeOff()
 		debugenvs { "key=value" }
-		flags { "DebugEnvsDontMerge" }
+		debugenvsmerge "Off"
 		prepare()
 		test.capture [[
 Environment="key=value"

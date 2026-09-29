@@ -11,7 +11,7 @@
 -- point. If you find yourself using or extending this code for your own
 -- work give me a shout before you go too far with it so we can coordinate.
 --
--- Copyright (c) 2012-2014 Jason Perkins and the Premake project
+-- Copyright (c) 2012-2014 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -99,10 +99,10 @@
 	function context.addFilter(ctx, key, value)
 		if type(value) == "table" then
 			for i = 1, #value do
-				value[i] = tostring(value[i]):lower()
+				value[i] = p.field.resolvealias(key, tostring(value[i]))
 			end
 		elseif value ~= nil then
-			value = tostring(value):lower()
+			value = p.field.resolvealias(key, value)
 		end
 		ctx.terms[key:lower()] = value
 	end

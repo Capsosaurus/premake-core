@@ -1,7 +1,7 @@
 --
 -- vs2005_solution.lua
 -- Generate a Visual Studio 2005+ solution.
--- Copyright (c) Jason Perkins and the Premake project
+-- Copyright (c) Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -197,6 +197,7 @@
 		return {
 			sln2005.activeCfg,
 			sln2005.build0,
+			sln2005.deploy0,
 		}
 	end
 
@@ -220,7 +221,7 @@
 					-- to closest available project configuration instead.
 					context.prj = prj
 					context.prjCfg = project.getconfig(prj, cfg.buildcfg, cfg.platform)
-					context.excluded = (context.prjCfg == nil or context.prjCfg.flags.ExcludeFromBuild)
+					context.excluded = (context.prjCfg == nil or context.prjCfg.excludefrombuild)
 
 					if context.prjCfg == nil then
 						context.prjCfg = project.findClosestMatch(prj, cfg.buildcfg, cfg.platform)
@@ -251,6 +252,29 @@
 		end
 	end
 
+	function sln2005.allowDeployment(cfg, context)
+
+		if not context.excluded then
+
+			if context.prjCfg.system == p.UWP and (context.prjCfg.kind == p.WINDOWEDAPP or context.prjCfg.kind == p.CONSOLEAPP) then
+				return true
+			elseif cfg.system == p.ANDROID and context.prjCfg.kind == p.PACKAGING then
+				return true
+			end
+
+		end
+
+		return false
+
+	end
+
+	function sln2005.deploy0(cfg, context)
+
+		if sln2005.allowDeployment(cfg, context) then
+			p.w('{%s}.%s.Deploy.0 = %s|%s', context.prj.uuid, context.descriptor, context.platform, context.architecture)
+		end
+	end
+
 --
 -- Write out the tables that map solution configurations to project configurations.
 --
@@ -259,6 +283,7 @@
 
 		local descriptors = {}
 		local sorted = {}
+		local defaultCfg = p.config.getdefault(wks)
 
 		for cfg in p.workspace.eachconfig(wks) do
 
@@ -276,30 +301,24 @@
 		end
 
 		-- Sort the solution configurations to match Visual Studio's preferred
-		-- order, which appears to be a simple alpha sort on the descriptors.
+		-- order, while keeping the selected default first.
 
 		table.sort(sorted, function(cfg0, cfg1)
+			if cfg0 == defaultCfg then
+				return cfg1 ~= defaultCfg
+			elseif cfg1 == defaultCfg then
+				return false
+			end
+
 			return descriptors[cfg0]:lower() < descriptors[cfg1]:lower()
 		end)
 
 		-- Now I can output the sorted list of solution configuration descriptors
 
 		-- Visual Studio assumes the first configurations as the defaults.
-		if wks.defaultplatform then
-			p.push('GlobalSection(SolutionConfigurationPlatforms) = preSolution')
-			table.foreachi(sorted, function (cfg)
-				if cfg.platform == wks.defaultplatform then
-					p.w('%s = %s', descriptors[cfg], descriptors[cfg])
-				end
-			end)
-			p.pop("EndGlobalSection")
-		end
-
 		p.push('GlobalSection(SolutionConfigurationPlatforms) = preSolution')
 		table.foreachi(sorted, function (cfg)
-			if not wks.defaultplatform or cfg.platform ~= wks.defaultplatform then
-				p.w('%s = %s', descriptors[cfg], descriptors[cfg])
-			end
+			p.w('%s = %s', descriptors[cfg], descriptors[cfg])
 		end)
 		p.pop("EndGlobalSection")
 

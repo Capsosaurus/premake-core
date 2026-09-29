@@ -1,7 +1,7 @@
 --
 -- tests/config/test_links.lua
 -- Test the list of linked objects retrieval function.
--- Copyright (c) 2012-2013 Jason Perkins and the Premake project
+-- Copyright (c) 2012-2013 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -21,9 +21,9 @@
 		wks, prj = test.createWorkspace()
 	end
 
-	local function prepare(kind, part, linkage)
+	local function prepare(kind, part, linkage, drop_wholearchive)
 		cfg = test.getconfig(prj, "Debug")
-		return config.getlinks(cfg, kind, part, linkage)
+		return config.getlinks(cfg, kind, part, linkage, drop_wholearchive)
 	end
 
 
@@ -222,3 +222,81 @@
 		local r = prepare("all", "fullpath")
 		test.isequal({ "bin/Debug/MyProject2.lib" }, r)
 	end
+
+--
+-- Linking decorators need to be passed through
+--
+
+	function suite.canLink_StaticDecoratorSystemLib()
+		links { "SystemLibrary:static" }
+		local r = prepare("all", "fullpath")
+		test.isequal({ "SystemLibrary:static" }, r)
+	end
+
+	function suite.canLink_SharedDecoratorSystemLib()
+		links { "SystemLibrary:shared" }
+		local r = prepare("all", "fullpath")
+		test.isequal({ "SystemLibrary:shared" }, r)
+	end
+
+--
+-- Linking decorators need to be stripped for sibling projects
+--
+
+	function suite.canLink_StaticDecoratorSiblingLib()
+		links { "SiblingLibrary:static" }
+
+		project "SiblingLibrary"
+		kind "StaticLib"
+		language "C++"
+
+		local r = prepare("all", "fullpath")
+		test.isequal({ "bin/Debug/SiblingLibrary.lib" }, r)
+	end
+
+	function suite.canLink_SharedDecoratorSiblingLib()
+		links { "SiblingLibrary:shared" }
+
+		project "SiblingLibrary"
+		kind "SharedLib"
+		language "C++"
+
+		local r = prepare("all", "fullpath")
+		test.isequal({ "bin/Debug/SiblingLibrary.lib" }, r)
+	end
+
+--
+-- wholearchive
+--
+
+	function suite.skipsWholeArchiveNormalLink_onSystem()
+		links { "SystemLibrary" }
+		wholearchive { "SystemLibrary" }
+		local r = prepare("all", "fullpath", nil, true)
+		test.isequal({}, r)
+	end
+
+	function suite.skipsWholeArchiveNormalLink_onSibling()
+		links { "MyProject2" }
+		wholearchive { "MyProject2" }
+
+		project "MyProject2"
+		kind "StaticLib"
+		language "C++"
+
+		local r = prepare("all", "fullpath", nil, true)
+		test.isequal({}, r)
+	end
+
+	function suite.keepsWholeArchiveNormalLink_onSiblingDependencies()
+		links { "MyProject2" }
+		wholearchive { "MyProject2" }
+
+		project "MyProject2"
+		kind "StaticLib"
+		language "C++"
+
+		local r = prepare("dependencies", "fullpath")
+		test.isequal({ "bin/Debug/MyProject2.lib" }, r)
+	end
+

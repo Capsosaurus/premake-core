@@ -1,7 +1,7 @@
 --
 -- tests/actions/vstudio/cs2005/projectsettings.lua
 -- Validate generation of root <PropertyGroup/> in Visual Studio 2005+ .csproj
--- Copyright (c) 2009-2015 Jason Perkins and the Premake project
+-- Copyright (c) 2009-2015 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -214,7 +214,7 @@
 		]]
 	end
 
-	
+
 --
 -- Lang version tests
 --
@@ -268,7 +268,7 @@
 
 	function suite.projectTypeGuids_onWPF()
 		p.action.set("vs2010")
-		flags { "WPF" }
+		wpf "On"
 		prepare()
 		test.capture [[
 	<PropertyGroup>

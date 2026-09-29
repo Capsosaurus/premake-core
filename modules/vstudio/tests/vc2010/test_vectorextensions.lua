@@ -2,8 +2,8 @@
 -- tests/actions/vstudio/vc2010/test_vectorextensions.lua
 -- Validate handling of vectorextensions() in VS 2010 C/C++ projects.
 --
--- Created 26 Mar 2015 by Jason Perkins
--- Copyright (c) 2015 Jason Perkins and the Premake project
+-- Created 26 Mar 2015 by Jess Perkins
+-- Copyright (c) 2015 Jess Perkins and the Premake project
 ---
 
 	local p = premake
@@ -88,6 +88,22 @@
 	function suite.instructionSet_onAVX2_onVS2012()
 		p.action.set("vs2012")
 		vectorextensions "AVX2"
+		prepare()
+		test.isemptycapture()
+	end
+
+	function suite.instructionSet_onAVX512()
+		p.action.set("vs2017")
+		vectorextensions "AVX512"
+		prepare()
+		test.capture [[
+<EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+		]]
+	end
+
+	function suite.instructionSet_onAVX512_onVS2015()
+		p.action.set("vs2015")
+		vectorextensions "AVX512"
 		prepare()
 		test.isemptycapture()
 	end

@@ -1,7 +1,7 @@
 /**
  * \file   os_chdir.c
  * \brief  Change the current working directory.
- * \author Copyright (c) 2002-2014 Jason Perkins and the Premake project
+ * \author Copyright (c) 2002-2014 Jess Perkins and the Premake project
  */
 
 #include "premake.h"
@@ -12,14 +12,10 @@ int do_chdir(lua_State* L, const char* path)
 	int z;
 
 #if PLATFORM_WINDOWS
-	wchar_t wide_buffer[PATH_MAX];
-	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wide_buffer, PATH_MAX) == 0)
-	{
-		lua_pushstring(L, "unable to encode path");
-		return lua_error(L);
-	}
-
-	z = SetCurrentDirectoryW(wide_buffer);
+	const wchar_t *wpath = luaL_convertstring(L, path);
+	if (!wpath) return luaL_error(L, "unable to encode path");
+	z = SetCurrentDirectoryW(wpath);
+	lua_pop(L, 1);
 #else
 	(void)(L);  /* warning: unused parameter */
 

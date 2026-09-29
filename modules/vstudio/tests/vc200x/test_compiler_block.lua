@@ -1,7 +1,7 @@
 --
 -- tests/actions/vstudio/vc200x/test_compiler_block.lua
 -- Validate generation the VCCLCompiler element in Visual Studio 200x C/C++ projects.
--- Copyright (c) 2011-2013 Jason Perkins and the Premake project
+-- Copyright (c) 2011-2013 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -135,7 +135,7 @@
 
 	function suite.looksGood_onC7DebugFormat()
 		symbols "On"
-		debugformat "C7"
+		debugformat("c7")
 		prepare()
 		test.capture [[
 <Tool
@@ -226,7 +226,7 @@
 --
 
 	function suite.minimalRebuildFlagsSet_onMinimalRebuildAndSymbols()
-		flags { "NoMinimalRebuild" }
+		minimalrebuild "Off"
 		symbols "On"
 		prepare()
 		test.capture [[
@@ -248,7 +248,7 @@
 --
 
 	function suite.noBufferSecurityFlagSet_onBufferSecurityCheck()
-		flags { "NoBufferSecurityCheck" }
+		buffersecuritycheck "Off"
 		prepare()
 		test.capture [[
 <Tool
@@ -256,6 +256,24 @@
 	Optimization="0"
 	BasicRuntimeChecks="3"
 	BufferSecurityCheck="false"
+	RuntimeLibrary="2"
+	EnableFunctionLevelLinking="true"
+	UsePrecompiledHeader="0"
+	WarningLevel="3"
+	DebugInformationFormat="0"
+/>
+		]]
+	end
+
+	function suite.bufferSecurityFlagSet_onBufferSecurityCheck()
+		buffersecuritycheck "On"
+		prepare()
+		test.capture [[
+<Tool
+	Name="VCCLCompilerTool"
+	Optimization="0"
+	BasicRuntimeChecks="3"
+	BufferSecurityCheck="true"
 	RuntimeLibrary="2"
 	EnableFunctionLevelLinking="true"
 	UsePrecompiledHeader="0"
@@ -332,13 +350,30 @@
 		]]
 	end
 
+	function suite.runtimeLibraryIsDebug_onHighWarnings()
+		warnings "High"
+		prepare()
+		test.capture [[
+<Tool
+	Name="VCCLCompilerTool"
+	Optimization="0"
+	BasicRuntimeChecks="3"
+	RuntimeLibrary="2"
+	EnableFunctionLevelLinking="true"
+	UsePrecompiledHeader="0"
+	WarningLevel="4"
+	DebugInformationFormat="0"
+/>
+		]]
+	end
+
 
 --
 -- Verify the correct warnings settings are used when FatalWarnings are enabled.
 --
 
-	function suite.runtimeLibraryIsDebug_onFatalWarnings()
-		flags { "FatalWarnings" }
+	function suite.runtimeLibraryIsDebug_onFatalWarningsViaAPI()
+		fatalwarnings { "All" }
 		prepare()
 		test.capture [[
 <Tool
@@ -360,8 +395,8 @@
 -- Verify the correct warnings settings are used when no warnings are enabled.
 --
 
-	function suite.runtimeLibraryIsDebug_onNoWarnings_whichDisablesAllOtherWarningsFlags()
-		flags { "FatalWarnings" }
+	function suite.runtimeLibraryIsDebug_onNoWarnings_whichDisablesAllOtherWarningsFlagsViaAPI()
+		fatalwarnings { "All" }
 		warnings "Off"
 		prepare()
 		test.capture [[
@@ -396,6 +431,44 @@
 	UsePrecompiledHeader="0"
 	WarningLevel="3"
 	Detect64BitPortabilityProblems="true"
+	DebugInformationFormat="0"
+/>
+		]]
+	end
+
+	function suite._64BitPortabilityOn_onVS2005_API()
+		p.action.set("vs2005")
+		enable64bitchecks "On"
+		prepare()
+		test.capture [[
+<Tool
+	Name="VCCLCompilerTool"
+	Optimization="0"
+	BasicRuntimeChecks="3"
+	RuntimeLibrary="2"
+	EnableFunctionLevelLinking="true"
+	UsePrecompiledHeader="0"
+	WarningLevel="3"
+	Detect64BitPortabilityProblems="true"
+	DebugInformationFormat="0"
+/>
+		]]
+	end
+
+	function suite._64BitPortabilityOff_onVS2005_API()
+		p.action.set("vs2005")
+		enable64bitchecks "Off"
+		prepare()
+		test.capture [[
+<Tool
+	Name="VCCLCompilerTool"
+	Optimization="0"
+	BasicRuntimeChecks="3"
+	RuntimeLibrary="2"
+	EnableFunctionLevelLinking="true"
+	UsePrecompiledHeader="0"
+	WarningLevel="3"
+	Detect64BitPortabilityProblems="false"
 	DebugInformationFormat="0"
 />
 		]]
@@ -481,28 +554,79 @@
 
 
 --
--- Verify handling of the NoRuntimeChecks flag.
+-- Check handling of the runtimechecks API with "Off" value.
 --
 
-	function suite.onNoRuntimeChecks()
-		flags { "NoRuntimeChecks" }
+	function suite.onRuntimeChecks_Off()
+		runtimechecks "Off"
 		prepare()
 		test.capture [[
 <Tool
 	Name="VCCLCompilerTool"
 	Optimization="0"
+	BasicRuntimeChecks="0"
 	RuntimeLibrary="2"
 		]]
 	end
 
 
+--
+-- Check handling of the runtimechecks API with "StackFrames" value.
+--
+
+	function suite.onRuntimeChecks_StackFrames()
+		runtimechecks "StackFrames"
+		prepare()
+		test.capture [[
+<Tool
+	Name="VCCLCompilerTool"
+	Optimization="0"
+	BasicRuntimeChecks="1"
+	RuntimeLibrary="2"
+		]]
+	end
+
 
 --
--- Check handling of the EnableMultiProcessorCompile flag.
+-- Check handling of the runtimechecks API with "UninitializedVariables" value.
+--
+
+	function suite.onRuntimeChecks_UninitializedVariables()
+		runtimechecks "UninitializedVariables"
+		prepare()
+		test.capture [[
+<Tool
+	Name="VCCLCompilerTool"
+	Optimization="0"
+	BasicRuntimeChecks="2"
+	RuntimeLibrary="2"
+		]]
+	end
+
+
+--
+-- Check handling of the runtimechecks API with "FastChecks" value.
+--
+
+	function suite.onRuntimeChecks_FastChecks()
+		runtimechecks "FastChecks"
+		prepare()
+		test.capture [[
+<Tool
+	Name="VCCLCompilerTool"
+	Optimization="0"
+	BasicRuntimeChecks="3"
+	RuntimeLibrary="2"
+		]]
+	end
+
+
+--
+-- Check handling of multiprocessorcompile.
 --
 
 	function suite.onMultiProcessorCompile()
-		flags { "MultiProcessorCompile" }
+		multiprocessorcompile "On"
 		prepare()
 		test.capture [[
 <Tool
@@ -554,7 +678,19 @@
 --
 
 	function suite.flags_onLinkTimeOptimization()
-		flags { "LinkTimeOptimization" }
+		linktimeoptimization "On"
+		prepare()
+		test.capture [[
+<Tool
+	Name="VCCLCompilerTool"
+	Optimization="0"
+	WholeProgramOptimization="true"
+		]]
+
+	end
+
+	function suite.flags_onLinkTimeOptimizationFast()
+		linktimeoptimization "Fast"
 		prepare()
 		test.capture [[
 <Tool
@@ -642,7 +778,7 @@
 --
 
 	function suite.onOmitDefaultLibrary()
-		flags { "OmitDefaultLibrary" }
+		nodefaultlib "On"
 		prepare()
 		test.capture [[
 <Tool

@@ -3,7 +3,7 @@
 --
 -- Prepares the runtime environment for the add-ons and user project scripts.
 --
--- Copyright (c) 2012-2015 Jason Perkins and the Premake project
+-- Copyright (c) 2012-2015 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -27,26 +27,27 @@
 			p.X86,
 			p.X86_64,
 			p.ARM,
-			p.ARM64,
+			p.AARCH64,
+			p.RISCV64,
+			p.LOONGARCH64,
+			p.PPC,
+			p.PPC64,
+			p.WASM32,
+			p.WASM64,
+			p.E2K,
+			p.MIPS64EL
 		},
 		aliases = {
-			i386  = p.X86,
-			amd64 = p.X86_64,
-			x32   = p.X86,	-- these should be DEPRECATED
-			x64   = p.X86_64,
+			i386    = p.X86,
+			amd64   = p.X86_64,
+			x32     = p.X86,
+			x64     = p.X86_64,
+			ARM64   = p.AARCH64,
 		},
 	}
 
-	api.register {
-		name = "atl",
-		scope = "config",
-		kind  = "string",
-		allowed = {
-			"Off",
-			"Dynamic",
-			"Static",
-		},
-	}
+	api.deprecateAlias("architecture", "i386", "Use 'x86' instead with `buildoptions { '-march=i386' }`.")
+	api.deprecateAlias("architecture", "x32", "Use 'x86' instead. There is no x32 ABI support currently.")
 
 	api.register {
 		name = "basedir",
@@ -64,28 +65,6 @@
 		name = "buildcommands",
 		scope = { "config", "rule" },
 		kind = "list:string",
-		tokens = true,
-		pathVars = true,
-	}
-
-	api.register {
-		name = "buildcustomizations",
-		scope = "project",
-		kind = "list:string",
-	}
-
-	api.register {
-		name = "builddependencies",
-		scope = { "rule" },
-		kind = "list:string",
-		tokens = true,
-		pathVars = true,
-	}
-
-	api.register {
-		name = "buildlog",
-		scope = { "config" },
-		kind = "path",
 		tokens = true,
 		pathVars = true,
 	}
@@ -117,16 +96,9 @@
 	api.register {
 		name = "buildinputs",
 		scope = "config",
-		kind = "list:path",
+		kind = "list:file",
 		tokens = true,
 		pathVars = false,
-	}
-
-	api.register {
-		name = "buildrule",     -- DEPRECATED
-		scope = "config",
-		kind = "table",
-		tokens = true,
 	}
 
 	api.register {
@@ -150,12 +122,6 @@
 	}
 
 	api.register {
-		name = "cleanextensions",
-		scope = "config",
-		kind = "list:string",
-	}
-
-	api.register {
 		name = "clr",
 		scope = "config",
 		kind = "string",
@@ -165,6 +131,7 @@
 			"Pure",
 			"Safe",
 			"Unsafe",
+			"NetCore",
 		}
 	}
 
@@ -184,6 +151,9 @@
 			"C++",
 			"Objective-C",
 			"Objective-C++",
+			"Module",
+			"ModulePartition",
+			"HeaderUnit"
 		}
 	}
 
@@ -224,13 +194,6 @@
 	}
 
 	api.register {
-		name = "debugconnectcommands",
-		scope = "config",
-		kind = "list:string",
-		tokens = true,
-	}
-
-	api.register {
 		name = "debugdir",
 		scope = "config",
 		kind = "path",
@@ -244,12 +207,6 @@
 		kind = "list:string",
 		tokens = true,
 		pathVars = true,
-	}
-
-	api.register {
-		name = "debugextendedprotocol",
-		scope = "config",
-		kind = "boolean",
 	}
 
 	api.register {
@@ -276,68 +233,13 @@
 	}
 
 	api.register {
-		name = "debuggertype",
-		scope = "config",
-		kind = "string",
-		allowed = {
-			"Mixed",
-			"NativeOnly",
-			"ManagedOnly",
-		}
-	}
-
-	api.register {
-		name = "debugpathmap",
-		scope = "config",
-		kind = "list:keyed:path",
-		tokens = true,
-	}
-
-	api.register {
-		name = "debugport",
-		scope = "config",
-		kind = "integer",
-	}
-
-	api.register {
-		name = "debugremotehost",
-		scope = "config",
-		kind = "string",
-		tokens = true,
-	}
-
-	api.register {
-		name = "debugsearchpaths",
-		scope = "config",
-		kind = "list:path",
-		tokens = true,
-	}
-
-	api.register {
-		name = "debugstartupcommands",
-		scope = "config",
-		kind = "list:string",
-		tokens = true,
-	}
-
-	api.register {
-		name = "debugtoolargs",
-		scope = "config",
-		kind = "list:string",
-		tokens = true,
-		pathVars = true,
-	}
-
-	api.register {
-		name = "debugtoolcommand",
-		scope = "config",
-		kind = "path",
-		tokens = true,
-		pathVars = true,
-	}
-
-	api.register {
 		name = "defaultplatform",
+		scope = "project",
+		kind = "string",
+	}
+
+	api.register {
+		name = "defaultconfiguration",
 		scope = "project",
 		kind = "string",
 	}
@@ -347,6 +249,9 @@
 		scope = "config",
 		kind = "list:string",
 		tokens = true,
+		allowed = function(value)
+			return iif(value == "", nil, value)
+		end
 	}
 
 	api.register {
@@ -367,18 +272,6 @@
 		name = "display",
 		scope = "rule",
 		kind = "string",
-	}
-
-	api.register {
-		name = "dpiawareness",
-		scope = "config",
-		kind = "string",
-		allowed = {
-			"Default",
-			"None",
-			"High",
-			"HighPerMonitor",
-		}
 	}
 
 	api.register {
@@ -413,17 +306,6 @@
 	}
 
 	api.register {
-		name = "endian",
-		scope = "config",
-		kind = "string",
-		allowed = {
-			"Default",
-			"Little",
-			"Big",
-		},
-	}
-
-	api.register {
 		name = "entrypoint",
 		scope = "config",
 		kind = "string",
@@ -433,7 +315,9 @@
 		name = "fatalwarnings",
 		scope = "config",
 		kind = "list:string",
-		tokens = true,
+		reserved = {
+			"All"
+		}
 	}
 
 	api.register {
@@ -457,74 +341,6 @@
 	}
 
 	api.register {
-		name = "functionlevellinking",
-		scope = "config",
-		kind = "boolean"
-	}
-
-	api.register {
-		name = "flags",
-		scope = "config",
-		kind  = "list:string",
-		allowed = {
-			"Component",           -- DEPRECATED
-			"DebugEnvsDontMerge",
-			"DebugEnvsInherit",
-			"EnableSSE",           -- DEPRECATED
-			"EnableSSE2",          -- DEPRECATED
-			"ExcludeFromBuild",
-			"ExtraWarnings",       -- DEPRECATED
-			"FatalCompileWarnings",
-			"FatalLinkWarnings",
-			"FloatFast",           -- DEPRECATED
-			"FloatStrict",         -- DEPRECATED
-			"LinkTimeOptimization",
-			"Managed",             -- DEPRECATED
-			"Maps",
-			"MFC",
-			"MultiProcessorCompile",
-			"NativeWChar",         -- DEPRECATED
-			"No64BitChecks",
-			"NoCopyLocal",
-			"NoEditAndContinue",   -- DEPRECATED
-			"NoFramePointer",      -- DEPRECATED
-			"NoImplicitLink",
-			"NoImportLib",
-			"NoIncrementalLink",
-			"NoManifest",
-			"NoMinimalRebuild",
-			"NoNativeWChar",       -- DEPRECATED
-			"NoPCH",
-			"NoRuntimeChecks",
-			"NoBufferSecurityCheck",
-			"NoWarnings",          -- DEPRECATED
-			"OmitDefaultLibrary",
-			"Optimize",            -- DEPRECATED
-			"OptimizeSize",        -- DEPRECATED
-			"OptimizeSpeed",       -- DEPRECATED
-			"RelativeLinks",
-			"ReleaseRuntime",      -- DEPRECATED
-			"ShadowedVariables",
-			"StaticRuntime",       -- DEPRECATED
-			"Symbols",             -- DEPRECATED
-			"UndefinedIdentifiers",
-			"WinMain",             -- DEPRECATED
-			"WPF",
-			"C++11",               -- DEPRECATED
-			"C++14",               -- DEPRECATED
-			"C90",                 -- DEPRECATED
-			"C99",                 -- DEPRECATED
-			"C11",                 -- DEPRECATED
-		},
-		aliases = {
-			FatalWarnings = { "FatalWarnings", "FatalCompileWarnings", "FatalLinkWarnings" },
-			Optimise = 'Optimize',
-			OptimiseSize = 'OptimizeSize',
-			OptimiseSpeed = 'OptimizeSpeed',
-		},
-	}
-
-	api.register {
 		name = "floatingpoint",
 		scope = "config",
 		kind = "string",
@@ -532,36 +348,7 @@
 			"Default",
 			"Fast",
 			"Strict",
-		}
-	}
-
-	api.register {
-		name = "floatingpointexceptions",
-		scope = "config",
-		kind = "boolean"
-	}
-
-	api.register {
-		name = "inlining",
-		scope = "config",
-		kind = "string",
-		allowed = {
-			"Default",
-			"Disabled",
-			"Explicit",
-			"Auto"
-		}
-	}
-
-	api.register {
-		name = "callingconvention",
-		scope = "config",
-		kind = "string",
-		allowed = {
-			"Cdecl",
-			"FastCall",
-			"StdCall",
-			"VectorCall",
+			"Precise"
 		}
 	}
 
@@ -573,73 +360,9 @@
 	}
 
 	api.register {
-		name = "forceusings",
-		scope = "config",
-		kind = "list:file",
-		tokens = true,
-	}
-
-	api.register {
-		name = "fpu",
-		scope = "config",
-		kind = "string",
-		allowed = {
-			"Software",
-			"Hardware",
-		}
-	}
-
-	api.register {
-		name = "dotnetframework",
-		scope = "config",
-		kind = "string",
-	}
-
-	api.register {
-		name = "enabledefaultcompileitems",
-		scope = "config",
-		kind = "boolean",
-		default = false
-	}
-
-	api.register {
-		name = "csversion",
-		scope = "config",
-		kind = "string",
-	}
-
-	api.register {
-		name = "gccprefix",
-		scope = "config",
-		kind = "string",
-		tokens = true,
-	}
-
-	api.register {
-		name = "ignoredefaultlibraries",
-		scope = "config",
-		kind = "list:mixed",
-		tokens = true,
-	}
-
-	api.register {
 		name = "icon",
 		scope = "project",
 		kind = "file",
-		tokens = true,
-	}
-
-	api.register {
-		name = "imageoptions",
-		scope = "config",
-		kind = "list:string",
-		tokens = true,
-	}
-
-	api.register {
-		name = "imagepath",
-		scope = "config",
-		kind = "path",
 		tokens = true,
 	}
 
@@ -686,9 +409,10 @@
 	}
 
 	api.register {
-		name = "intrinsics",
+		name = "infoplist",
 		scope = "config",
-		kind = "boolean"
+		kind = "path",
+		tokens = true,
 	}
 
 	api.register {
@@ -747,10 +471,14 @@
 			"C90",
 			"C99",
 			"C11",
+			"C17",
+			"C23",
 			"gnu89",
 			"gnu90",
 			"gnu99",
 			"gnu11",
+			"gnu17",
+			"gnu23",
 		}
 	}
 
@@ -768,6 +496,12 @@
 			"C++14",
 			"C++1z",
 			"C++17",
+			"C++2a",
+			"C++20",
+			"C++2b",
+			"C++23",
+			"C++2c",
+			"C++26",
 			"gnu++98",
 			"gnu++0x",
 			"gnu++11",
@@ -775,6 +509,12 @@
 			"gnu++14",
 			"gnu++1z",
 			"gnu++17",
+			"gnu++2a",
+			"gnu++20",
+			"gnu++2b",
+			"gnu++23",
+			"gnu++2c",
+			"gnu++26",
 		}
 	}
 
@@ -823,10 +563,22 @@
 	}
 
 	api.register {
-		name = "locale",
+		name = "linker",
 		scope = "config",
 		kind = "string",
-		tokens = false,
+		allowed = {
+			"Default",
+			"LLD",
+		}
+	}
+
+	api.register {
+		name = "linkerfatalwarnings",
+		scope = "config",
+		kind = "list:string",
+		reserved = {
+			"All"
+		}
 	}
 
 	api.register {
@@ -841,24 +593,6 @@
 		scope = "config",
 		kind = "list:string",
 		tokens = true,
-	}
-
-	api.register {
-		name = "namespace",
-		scope = "project",
-		kind = "string",
-		tokens = true,
-	}
-
-	api.register {
-		name = "nativewchar",
-		scope = "config",
-		kind = "string",
-		allowed = {
-			"Default",
-			"On",
-			"Off",
-		}
 	}
 
 	api.register {
@@ -917,13 +651,6 @@
 		name = "pchheader",
 		scope = "config",
 		kind = "string",
-		tokens = true,
-	}
-
-	api.register {
-		name = "pchsource",
-		scope = "config",
-		kind = "path",
 		tokens = true,
 	}
 
@@ -1029,16 +756,6 @@
 	}
 
 	api.register {
-		name = "resourcegenerator",
-		scope = "project",
-		kind = "string",
-        allowed = {
-            "internal",
-            "public"
-        }
-	}
-
-	api.register {
 		name = "rtti",
 		scope = "config",
 		kind = "string",
@@ -1053,6 +770,18 @@
 		name = "rules",
 		scope = "project",
 		kind = "list:string",
+	}
+
+	api.register {
+		name = "sanitize",
+		scope = "config",
+		kind = "list:string",
+		allowed = {
+			"Address",
+			"Fuzzer",              -- Visual Studio 2022+ only
+			"Thread",
+			"UndefinedBehavior",
+		}
 	}
 
 	api.register {
@@ -1086,9 +815,16 @@
 	}
 
 	api.register {
-		name = "stringpooling",
+		name = "structmemberalign",
 		scope = "config",
-		kind = "boolean"
+		kind = "integer",
+		allowed = {
+			"1",
+			"2",
+			"4",
+			"8",
+			"16",
+		}
 	}
 
 	api.register {
@@ -1105,20 +841,6 @@
 	}
 
 	api.register {
-		name = "symbolspath",
-		scope = "config",
-		kind = "path",
-		tokens = true,
-	}
-
-	api.register {
-		name = "sysincludedirs",
-		scope = "config",
-		kind = "list:directory",
-		tokens = true,
-	}
-
-	api.register {
 		name = "syslibdirs",
 		scope = "config",
 		kind = "list:directory",
@@ -1132,11 +854,15 @@
 		allowed = {
 			"aix",
 			"bsd",
+			"emscripten",
 			"haiku",
+			"hurd",
 			"ios",
 			"linux",
 			"macosx",
 			"solaris",
+			"tvos",
+			"uwp",
 			"wii",
 			"windows",
 		},
@@ -1152,12 +878,6 @@
 		name = "tags",
 		scope = "config",
 		kind = "list:string",
-	}
-
-	api.register {
-		name = "tailcalls",
-		scope = "config",
-		kind = "boolean"
 	}
 
 	api.register {
@@ -1211,22 +931,9 @@
 	}
 
 	api.register {
-		name = "customtoolnamespace",
-		scope = "config",
-		kind = "string",
-	}
-
-	api.register {
 		name = "undefines",
 		scope = "config",
 		kind = "list:string",
-		tokens = true,
-	}
-
-	api.register {
-		name = "usingdirs",
-		scope = "config",
-		kind = "list:directory",
 		tokens = true,
 	}
 
@@ -1260,12 +967,15 @@
 			"Default",
 			"AVX",
 			"AVX2",
+			"AVX512",
 			"IA32",
 			"SSE",
 			"SSE2",
 			"SSE3",
 			"SSSE3",
 			"SSE4.1",
+			"SSE4.2",
+			"ALTIVEC",
 		}
 	}
 
@@ -1305,13 +1015,14 @@
 			"Default",
 			"High",
 			"Extra",
+			"Everything",
 		}
 	}
 
 	api.register {
-		name = "largeaddressaware",
+		name = "wholearchive",
 		scope = "config",
-		kind = "boolean",
+		kind = "list:string"
 	}
 
 	api.register {
@@ -1321,33 +1032,9 @@
 	}
 
 	api.register {
-		name = "preferredtoolarchitecture",
-		scope = "workspace",
-		kind = "string",
-		allowed = {
-			"Default",
-			p.X86,
-			p.X86_64,
-		}
-	}
-
-	api.register {
 		name = "unsignedchar",
 		scope = "config",
 		kind = "boolean",
-	}
-
-	p.api.register {
-		name = "structmemberalign",
-		scope = "config",
-		kind = "integer",
-		allowed = {
-			"1",
-			"2",
-			"4",
-			"8",
-			"16",
-		}
 	}
 
 	api.register {
@@ -1384,10 +1071,297 @@
 	}
 
 	api.register {
-		name = "assemblydebug",
+		name = "openmp",
+		scope = "project",
+		kind = "string",
+		allowed = {
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "externalincludedirs",
 		scope = "config",
-		kind  = "boolean"
-	}	
+		kind = "list:directory",
+		tokens = true,
+	}
+
+	api.register {
+		name = "externalwarnings",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Off",
+			"Default",
+			"High",
+			"Extra",
+			"Everything",
+		}
+	}
+
+	api.register {
+		name = "includedirsafter",
+		scope = "config",
+		kind = "list:directory",
+		tokens = true
+	}
+
+	api.register {
+		name = "linktimeoptimization",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Fast",
+			"Off"
+		}
+	}
+
+	premake.filterFatalWarnings = function(tbl)
+		if type(tbl) == "table" then
+			return table.filter(tbl, function(warning)
+				return not (warning == "All")
+			end)
+		else
+			return tbl
+		end
+	end
+
+	premake.hasFatalCompileWarnings = function(tbl)
+		if (type(tbl) == "table") then
+			return table.contains(tbl, "All")
+		else
+			return false
+		end
+	end
+
+	premake.hasFatalLinkWarnings = function(tbl)
+		if (type(tbl) == "table") then
+			return table.contains(tbl, "All")
+		else
+			return false
+		end
+	end
+
+	api.register {
+		name = "uses",
+		scope = "config",
+		kind = "list:string",
+	}
+
+	p.api.register {
+		name = "profile",
+		scope = "config",
+		kind = "boolean"
+	}
+
+	p.api.register {
+		name = "targetbundleextension",
+		scope = "config",
+		kind = "string"
+	}
+
+	api.register {
+		name = "mapfile",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "mapfilepath",
+		scope = "config",
+		kind = "string",
+	}
+
+	api.register {
+		name = "enable64bitchecks",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "multiprocessorcompile",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "buffersecuritycheck",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "useimportlib",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "incrementallink",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "manifest",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off",
+		}
+	}
+
+	api.register {
+		name = "minimalrebuild",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "enablepch",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off",
+		},
+	}
+
+	api.register {
+		name = "generateassembly",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Verbose",
+			"Off",
+		},
+	}
+
+	api.register {
+		name = "nodefaultlib",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off",
+		},
+	}
+
+	api.register {
+		name = "userelativelinks",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off",
+		},
+	}
+
+	api.register {
+		name = "wpf",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off",
+		},
+	}
+
+	api.register {
+		name = "debugenvsinherit",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off",
+		},
+	}
+
+	api.register {
+		name = "debugenvsmerge",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off",
+		},
+	}
+
+	api.register {
+		name = "excludefrombuild",
+		scope = "config",
+		kind = "boolean",
+	}
+
+	api.register {
+		name = "useshortenums",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
+
+	api.register {
+		name = "dynamicdebugging",
+		scope = "config",
+		kind = "string",
+		allowed = {
+			"Default",
+			"On",
+			"Off"
+		}
+	}
 
 -----------------------------------------------------------------------------
 --
@@ -1396,248 +1370,12 @@
 -----------------------------------------------------------------------------
 
 	api.alias("buildcommands", "buildCommands")
-	api.alias("builddependencies", "buildDependencies")
 	api.alias("buildmessage", "buildMessage")
 	api.alias("buildoutputs", "buildOutputs")
-	api.alias("cleanextensions", "cleanExtensions")
-	api.alias("dotnetframework", "framework")
 	api.alias("editandcontinue", "editAndContinue")
 	api.alias("fileextension", "fileExtension")
 	api.alias("propertydefinition", "propertyDefinition")
 	api.alias("removefiles", "excludes")
-
-
------------------------------------------------------------------------------
---
--- Handlers for deprecated fields and values.
---
------------------------------------------------------------------------------
-
-	-- 13 Apr 2017
-
-	api.deprecateField("buildrule", 'Use `buildcommands`, `buildoutputs`, and `buildmessage` instead.',
-	function(value)
-		if value.description then
-			buildmessage(value.description)
-		end
-		buildcommands(value.commands)
-		buildoutputs(value.outputs)
-	end)
-
-
-	api.deprecateValue("flags", "Component", 'Use `buildaction "Component"` instead.',
-	function(value)
-		buildaction "Component"
-	end)
-
-
-	api.deprecateValue("flags", "EnableSSE", 'Use `vectorextensions "SSE"` instead.',
-	function(value)
-		vectorextensions("SSE")
-	end,
-	function(value)
-		vectorextensions "Default"
-	end)
-
-
-	api.deprecateValue("flags", "EnableSSE2", 'Use `vectorextensions "SSE2"` instead.',
-	function(value)
-		vectorextensions("SSE2")
-	end,
-	function(value)
-		vectorextensions "Default"
-	end)
-
-
-	api.deprecateValue("flags", "FloatFast", 'Use `floatingpoint "Fast"` instead.',
-	function(value)
-		floatingpoint("Fast")
-	end,
-	function(value)
-		floatingpoint "Default"
-	end)
-
-
-	api.deprecateValue("flags", "FloatStrict", 'Use `floatingpoint "Strict"` instead.',
-	function(value)
-		floatingpoint("Strict")
-	end,
-	function(value)
-		floatingpoint "Default"
-	end)
-
-
-	api.deprecateValue("flags", "NativeWChar", 'Use `nativewchar "On"` instead."',
-	function(value)
-		nativewchar("On")
-	end,
-	function(value)
-		nativewchar "Default"
-	end)
-
-
-	api.deprecateValue("flags", "NoNativeWChar", 'Use `nativewchar "Off"` instead."',
-	function(value)
-		nativewchar("Off")
-	end,
-	function(value)
-		nativewchar "Default"
-	end)
-
-
-	api.deprecateValue("flags", "Optimize", 'Use `optimize "On"` instead.',
-	function(value)
-		optimize ("On")
-	end,
-	function(value)
-		optimize "Off"
-	end)
-
-
-	api.deprecateValue("flags", "OptimizeSize", 'Use `optimize "Size"` instead.',
-	function(value)
-		optimize ("Size")
-	end,
-	function(value)
-		optimize "Off"
-	end)
-
-
-	api.deprecateValue("flags", "OptimizeSpeed", 'Use `optimize "Speed"` instead.',
-	function(value)
-		optimize ("Speed")
-	end,
-	function(value)
-		optimize "Off"
-	end)
-
-
-	api.deprecateValue("flags", "ReleaseRuntime", 'Use `runtime "Release"` instead.',
-	function(value)
-		runtime "Release"
-	end,
-	function(value)
-	end)
-
-
-	api.deprecateValue("flags", "ExtraWarnings", 'Use `warnings "Extra"` instead.',
-	function(value)
-		warnings "Extra"
-	end,
-	function(value)
-		warnings "Default"
-	end)
-
-
-	api.deprecateValue("flags", "NoWarnings", 'Use `warnings "Off"` instead.',
-	function(value)
-		warnings "Off"
-	end,
-	function(value)
-		warnings "Default"
-	end)
-
-	api.deprecateValue("flags", "Managed", 'Use `clr "On"` instead.',
-	function(value)
-		clr "On"
-	end,
-	function(value)
-		clr "Off"
-	end)
-
-
-	api.deprecateValue("flags", "NoEditAndContinue", 'Use editandcontinue "Off"` instead.',
-	function(value)
-		editandcontinue "Off"
-	end,
-	function(value)
-		editandcontinue "On"
-	end)
-
-
-	-- 21 June 2016
-
-	api.deprecateValue("flags", "Symbols", 'Use `symbols "On"` instead',
-	function(value)
-		symbols "On"
-	end,
-	function(value)
-		symbols "Default"
-	end)
-
-
-	-- 31 January 2017
-
-	api.deprecateValue("flags", "C++11", 'Use `cppdialect "C++11"` instead',
-	function(value)
-		cppdialect "C++11"
-	end,
-	function(value)
-		cppdialect "Default"
-	end)
-
-	api.deprecateValue("flags", "C++14", 'Use `cppdialect "C++14"` instead',
-	function(value)
-		cppdialect "C++14"
-	end,
-	function(value)
-		cppdialect "Default"
-	end)
-
-	api.deprecateValue("flags", "C90",   'Use `cdialect "gnu90"` instead',
-	function(value)
-		cdialect "gnu90"
-	end,
-	function(value)
-		cdialect "Default"
-	end)
-
-	api.deprecateValue("flags", "C99",   'Use `cdialect "gnu99"` instead',
-	function(value)
-		cdialect "gnu99"
-	end,
-	function(value)
-		cdialect "Default"
-	end)
-
-	api.deprecateValue("flags", "C11",   'Use `cdialect "gnu11"` instead',
-	function(value)
-		cdialect "gnu11"
-	end,
-	function(value)
-		cdialect "Default"
-	end)
-
-
-	-- 13 April 2017
-
-	api.deprecateValue("flags", "WinMain", 'Use `entrypoint "WinMainCRTStartup"` instead',
-	function(value)
-		entrypoint "WinMainCRTStartup"
-	end,
-	function(value)
-		entrypoint "mainCRTStartup"
-	end)
-
-	-- 31 October 2017
-
-	api.deprecateValue("flags", "StaticRuntime", 'Use `staticruntime "On"` instead',
-	function(value)
-		staticruntime "On"
-	end,
-	function(value)
-		staticruntime "Default"
-	end)
-
-	-- 08 April 2018
-
-	api.deprecateValue("flags", "NoFramePointer", 'Use `omitframepointer "On"` instead.',
-	function(value)
-		omitframepointer("On")
-	end,
-	function(value)
-		omitframepointer("Default")
-	end)
 
 -----------------------------------------------------------------------------
 --
@@ -1654,9 +1392,28 @@
 		allowed = {
 			{ "clang", "Clang (clang)" },
 			{ "gcc", "GNU GCC (gcc/g++)" },
-			{ "mingw", "MinGW GCC (gcc/g++)" },
+			{ "mingw", "MinGW GCC (gcc/g++)" }, -- deprecated
+			{ "msc-v80", "Microsoft compiler (Visual Studio 2005)" },
+			{ "msc-v90", "Microsoft compiler (Visual Studio 2008)" },
+			{ "msc-v100", "Microsoft compiler (Visual Studio 2010)" },
+			{ "msc-v110", "Microsoft compiler (Visual Studio 2012)" },
+			{ "msc-v120", "Microsoft compiler (Visual Studio 2013)" },
+			{ "msc-v140", "Microsoft compiler (Visual Studio 2015)" },
+			{ "msc-v141", "Microsoft compiler (Visual Studio 2017)" },
+			{ "msc-v142", "Microsoft compiler (Visual Studio 2019)" },
+			{ "msc-v143", "Microsoft compiler (Visual Studio 2022)" },
+			{ "msc-v145", "Microsoft compiler (Visual Studio 2026)" },
+			function (name)
+				local toolset, version = p.tools.canonical(name)
+				return toolset
+			end
 		}
 	}
+
+	if _OPTIONS[cc] == "mingw" then
+		p.warn("--cc=mingw is deprecated, use --cc=gcc instead")
+		_OPTIONS[cc] = "gcc"
+	end
 
 	newoption
 	{
@@ -1714,15 +1471,47 @@
 		value       = "VALUE",
 		description = "Generate files for a different operating system",
 		allowed = {
-			{ "aix",      "IBM AIX" },
-			{ "bsd",      "OpenBSD, NetBSD, or FreeBSD" },
-			{ "haiku",    "Haiku" },
-			{ "hurd",     "GNU/Hurd" },
-			{ "ios",      "iOS" },
-			{ "linux",    "Linux" },
-			{ "macosx",   "Apple Mac OS X" },
-			{ "solaris",  "Solaris" },
-			{ "windows",  "Microsoft Windows" },
+			{ "aix",        "IBM AIX" },
+			{ "bsd",        "OpenBSD, NetBSD, or FreeBSD" },
+			{ "emscripten", "Emscripten" },
+			{ "haiku",      "Haiku" },
+			{ "hurd",       "GNU/Hurd" },
+			{ "ios",        "iOS" },
+			{ "linux",      "Linux" },
+			{ "macosx",     "Apple Mac OS X" },
+			{ "solaris",    "Solaris" },
+			{ "tvos",       "tvOS" },
+			{ "uwp",        "Microsoft Universal Windows Platform"},
+			{ "windows",    "Microsoft Windows" },
+		}
+	}
+
+	local function getArchs()
+		local keys={}
+		for key,_ in pairs(premake.field.get("architecture").allowed) do
+			if type(key) ~= "number" then
+				table.insert(keys, { key, "" })
+			end
+		end
+		return keys
+	end
+
+	newoption
+	{
+		trigger     = "arch",
+		value       = "VALUE",
+		description = "Generate files for a different architecture",
+		allowed = getArchs()
+	}
+
+	newoption
+	{
+		trigger     = "shell",
+		value       = "VALUE",
+		description = "Select shell (for command token substitution)",
+		allowed = {
+			{ "cmd", "Windows command shell" },
+			{ "posix", "For posix shells" },
 		}
 	}
 
@@ -1749,7 +1538,7 @@
 	if http ~= nil then
 		newoption {
 			trigger = "insecure",
-			description = "forfit SSH certification checks."
+			description = "Forfeit SSH certification checks."
 		}
 	end
 
@@ -1786,22 +1575,22 @@
 	-- Add variations for other Posix-like systems.
 
 	filter { "system:darwin", "kind:WindowedApp" }
-		targetextension ".app"
+		targetbundleextension ".app"
 
 	filter { "system:darwin", "kind:SharedLib" }
 		targetextension ".dylib"
 
 	filter { "system:darwin", "kind:SharedLib", "sharedlibtype:OSXBundle" }
 		targetprefix ""
-		targetextension ".bundle"
+		targetbundleextension ".bundle"
 
 	filter { "system:darwin", "kind:SharedLib", "sharedlibtype:OSXFramework" }
 		targetprefix ""
-		targetextension ".framework"
+		targetbundleextension ".framework"
 
 	filter { "system:darwin", "kind:SharedLib", "sharedlibtype:XCTest" }
 		targetprefix ""
-		targetextension ".xctest"
+		targetbundleextension ".xctest"
 
 	-- Windows and friends.
 
@@ -1827,6 +1616,16 @@
 
 	filter { "system:darwin" }
 		toolset "clang"
+
+	filter { "system:emscripten" }
+		toolset "emcc"
+		architecture "wasm32"
+
+	filter { "system:emscripten", "kind:ConsoleApp or WindowedApp" }
+		targetextension ".wasm"
+
+	filter { "platforms:Win32" }
+		architecture "x86"
 
 	filter { "platforms:Win64" }
 		architecture "x86_64"

@@ -1,12 +1,35 @@
 ---
 -- tests/base/test_os.lua
 -- Automated test suite for the new OS functions.
--- Copyright (c) 2008-2017 Jason Perkins and the Premake project
+-- Copyright (c) 2008-2017 Jess Perkins and the Premake project
 ---
 
 	local suite = test.declare("base_os")
 
 	local cwd
+	local real_io_open = io.open
+
+	local tmpname = function()
+		local p = os.tmpname()
+		if p:startswith("\\") then
+			p = "." .. p
+		end
+		os.remove(p) -- just needed on POSIX
+		return p
+	end
+
+	local tmpfile = function()
+		local p = tmpname()
+		local f = assert(real_io_open(p, "w"))
+		f:close()
+		return p
+	end
+
+	local tmpdir = function()
+		local p = tmpname()
+		os.mkdir(p)
+		return p
+	end
 
 	function suite.setup()
 		cwd = os.getcwd()
@@ -17,16 +40,53 @@
 		os.chdir(cwd)
 	end
 
+	local function create_mock_os_getenv(map)
+		return function (key) return map[key] end
+	end
+
+	local function get_LD_PATH_variable_name()
+		if os.istarget("windows") then
+			return 'PATH'
+		elseif os.istarget("haiku") then
+			return 'LIBRARY_PATH'
+		elseif os.istarget("darwin") then
+			return 'DYLD_LIBRARY_PATH'
+		else
+			return 'LD_LIBRARY_PATH'
+		end
+	end
+
+	local function get_surrounded_env_path(dir)
+		if os.istarget("windows") then
+			return "c:\\anyPath;" .. path.getabsolute(dir) .. ";c:\\otherpath"
+		else
+			return "/any_path:" .. path.getabsolute(dir) .. ":/other_path"
+		end
+	end
 
 --
 -- os.findlib() tests
 --
 
 	function suite.findlib_FindSystemLib()
-		if os.istarget("windows") then
+		if os.istarget("macosx") then
+			-- macOS no longer stores system libraries on filesystem; see
+			-- https://developer.apple.com/documentation/macos-release-notes/macos-big-sur-11_0_1-release-notes
+		elseif os.istarget("windows") then
 			test.istrue(os.findlib("user32"))
 		elseif os.istarget("haiku") then
 			test.istrue(os.findlib("root"))
+		elseif os.istarget("bsd") and os.getversion().description == "OpenBSD" then
+			-- OpenBSD doesn't have a 'libm.so' symlink like other systems,
+			-- it only has the versioned files, 'libm.so.X.Y' which will
+			-- change between versions of OpenBSD. os.findlib currently won't
+			-- find these versioned files without the version info.
+
+			-- libm should be '/usr/lib/libm.so.X.Y' find the exact filename
+			-- and use that.
+			local libms = os.matchfiles("/usr/lib/libm.so.*")
+			test.isfalse(0 == #libms)
+			test.istrue(os.findlib(path.getname(libms[1])))
 		else
 			test.istrue(os.findlib("m"))
 		end
@@ -34,6 +94,20 @@
 
 	function suite.findlib_FailsOnBadLibName()
 		test.isfalse(os.findlib("NoSuchLibraryAsThisOneHere"))
+	end
+
+	function suite.findlib_provided()
+		test.isequal(path.getabsolute("folder/subfolder/lib"),
+					 os.findlib("test", path.getabsolute("folder/subfolder/lib")))
+	end
+
+	function suite.findlib_frompath()
+		local os_getenv = os.getenv
+		os.getenv = create_mock_os_getenv({ [get_LD_PATH_variable_name()] = get_surrounded_env_path("folder/subfolder/lib") })
+
+		test.isequal(path.getabsolute("folder/subfolder/lib"), os.findlib("test"))
+
+		os.getenv = os_getenv
 	end
 
 	function suite.findheader_stdheaders()
@@ -46,6 +120,57 @@
 		test.isfalse(os.findheader("Knights/who/say/Ni.hpp"))
 	end
 
+	function suite.findheader_provided()
+		test.isequal(path.getabsolute("folder/subfolder/include"),
+					 os.findheader("test.h", path.getabsolute("folder/subfolder/include")))
+	end
+
+	function suite.findsubdirheader_provided_relative()
+		local os_getenv = os.getenv
+		os.getenv = create_mock_os_getenv({ [get_LD_PATH_variable_name()] = get_surrounded_env_path("folder/subfolder/lib") })
+
+		test.isequal(path.getabsolute("folder/subfolder/include/testlib"), os.findsubdirheader("testlib2.h", "testlib"))
+
+		os.getenv = os_getenv
+	end
+
+	function suite.findsubdirheader_failure()
+		test.isfalse(os.findsubdirheader("Knights/who/say/Ni.hpp", "nonexistent"))
+	end
+
+	function suite.findsubdirheader_provided_absolute()
+		test.isequal(path.getabsolute("folder/subfolder/include"),
+					 os.findsubdirheader("test.h", path.getabsolute("folder/subfolder/include")))
+	end
+
+	function suite.findsubdirheader_mixed_with_empty()
+		local os_getenv = os.getenv
+		os.getenv = create_mock_os_getenv({ [get_LD_PATH_variable_name()] = get_surrounded_env_path("folder/subfolder/lib") })
+
+		-- "testlib" finds testlib2.h; "" allows test.h to be found in the base include dir
+		test.isequal(path.getabsolute("folder/subfolder/include/testlib"), os.findsubdirheader("testlib2.h", {"testlib", ""}))
+		test.isequal(path.getabsolute("folder/subfolder/include"), os.findsubdirheader("test.h", {"testlib", ""}))
+
+		os.getenv = os_getenv
+	end
+
+	function suite.findheader_frompath_lib()
+		local os_getenv = os.getenv
+		os.getenv = create_mock_os_getenv({ [get_LD_PATH_variable_name()] = get_surrounded_env_path("folder/subfolder/lib") })
+
+		test.isequal(path.getabsolute("folder/subfolder/include"), os.findheader("test.h"))
+
+		os.getenv = os_getenv
+	end
+
+	function suite.findheader_frompath_bin()
+		local os_getenv = os.getenv
+		os.getenv = create_mock_os_getenv({ [get_LD_PATH_variable_name()] = get_surrounded_env_path("folder/subfolder/bin") })
+
+		test.isequal(path.getabsolute("folder/subfolder/include"), os.findheader("test.h"))
+
+		os.getenv = os_getenv
+	end
 
 --
 -- os.isfile() tests
@@ -59,7 +184,35 @@
 		test.isfalse(os.isfile("no_such_file.lua"))
 	end
 
+--
+-- os.linkdir() and os.linkfile() tests
+--
 
+	function suite.linkdir()
+		test.istrue(os.linkdir("folder/subfolder", "folder/subfolder2"))
+		test.istrue(os.islink("folder/subfolder2"))
+		test.istrue(os.rmdir("folder/subfolder2"))
+		test.isfalse(os.islink("folder/subfolder2"))
+	end
+
+	function suite.linkfile()
+		test.istrue(os.linkfile("folder/ok.lua", "folder/ok2.lua"))
+		test.istrue(os.islink("folder/ok2.lua"))
+		test.istrue(os.remove("folder/ok2.lua"))
+		test.isfalse(os.islink("folder/ok2.lua"))
+	end
+
+--
+-- os.mkdir() tests
+--
+
+	function suite.mkdir_ReturnsError_OnExistingFile()
+		local filename = tmpfile()
+		local ok, err = os.mkdir(filename)
+		os.remove(filename)
+		test.isnil(ok)
+		test.isequal("string", type(err))
+	end
 
 --
 -- os.matchdirs() tests
@@ -124,6 +277,20 @@
 		test.istrue(table.contains(result, "folder/subfolder/hello.txt"))
 	end
 
+	function suite.matchfiles_onSymbolicLink()
+		if os.istarget("macosx")
+			or os.istarget("linux")
+			or os.istarget("solaris")
+			or os.istarget("bsd")
+		then
+			os.execute("cd folder && ln -s subfolder symlinkfolder && cd ..")
+			local result = os.matchfiles("folder/**/*.txt")
+			os.execute("rm folder/symlinkfolder")
+			premake.modules.self_test.print(table.tostring(result))
+			test.istrue(table.contains(result, "folder/symlinkfolder/hello.txt"))
+		end
+	end
+
 
 --
 -- os.pathsearch() tests
@@ -171,6 +338,24 @@
 		end
 	end
 
+	-- Check outputof content
+	function suite.outputof_streams_output()
+		if (os.istarget("macosx")
+			or os.istarget("linux")
+			or os.istarget("solaris")
+			or os.istarget("bsd"))
+			and os.isdir (_TESTS_DIR)
+		then
+			local ob, e = os.outputof ("ls " .. _TESTS_DIR .. "/base")
+			local oo, e = os.outputof ("ls " .. _TESTS_DIR .. "/base", "output")
+			test.isequal (oo, ob)
+			local s, e = string.find (oo, "test_os.lua")
+			test.istrue(s ~= nil)
+
+			local o, e = os.outputof ("ls " .. cwd .. "/base", "error")
+			test.istrue(o == nil or #o == 0)
+		end
+	end
 
 --
 -- os.translateCommand() tests
@@ -194,50 +379,60 @@
 		test.isequal("test a b; test c d; test e f;", os.translateCommands("{COPY} a b; {COPY} c d; {COPY} e f;", "test"))
 	end
 
+
 --
--- os.translateCommand() windows COPY tests
+-- os.translateCommand() COPYFILEIFNEWER tests
 --
-
-	function suite.translateCommand_windowsCopyNoDst()
-		test.isequal('IF EXIST a\\ (xcopy /Q /E /Y /I a > nul) ELSE (xcopy /Q /Y /I a > nul)', os.translateCommands('{COPY} a', "windows"))
+	function suite.translateCommand_windowsCopyFileIfNewer()
+		test.isequal('xcopy /D /Y a b*', os.translateCommands('{COPYFILEIFNEWER} a b', "windows"))
 	end
 
-	function suite.translateCommand_windowsCopyNoDst_ExtraSpace()
-		test.isequal('IF EXIST a\\ (xcopy /Q /E /Y /I a > nul) ELSE (xcopy /Q /Y /I a > nul)', os.translateCommands('{COPY} a ', "windows"))
+	function suite.translateCommand_windowsCopyFileIfNewerWithSpaces()
+		test.isequal('xcopy /D /Y "a a" "b b*"', os.translateCommands('{COPYFILEIFNEWER} "a a" "b b"', "windows"))
 	end
 
-	function suite.translateCommand_windowsCopyNoQuotes()
-		test.isequal('IF EXIST a\\ (xcopy /Q /E /Y /I a b > nul) ELSE (xcopy /Q /Y /I a b > nul)', os.translateCommands('{COPY} a b', "windows"))
+	function suite.translateCommand_windowsCopyFileIfNewerWithPaths()
+		test.isequal('xcopy /D /Y "src\\dir\\file.txt" "dst\\dir\\file.txt*"', os.translateCommandsAndPaths('{COPYFILEIFNEWER} %[src/dir/file.txt] %[dst/dir/file.txt]', '.', '.', "windows"))
 	end
 
-	function suite.translateCommand_windowsCopyNoQuotes_ExtraSpace()
-		test.isequal('IF EXIST a\\ (xcopy /Q /E /Y /I a b > nul) ELSE (xcopy /Q /Y /I a b > nul)', os.translateCommands('{COPY} a b ', "windows"))
+	function suite.translateCommand_windowsCopyFileIfNewerDirDst()
+		test.isequal('xcopy /D /Y "src\\Core.dll" "dst\\outdir\\Core.dll*"', os.translateCommandsAndPaths('{COPYFILEIFNEWER} %[src/Core.dll] %[dst/outdir/]', '.', '.', "windows"))
 	end
 
-	function suite.translateCommand_windowsCopyQuotes()
-		test.isequal('IF EXIST "a a"\\ (xcopy /Q /E /Y /I "a a" "b" > nul) ELSE (xcopy /Q /Y /I "a a" "b" > nul)', os.translateCommands('{COPY} "a a" "b"', "windows"))
+	function suite.translateCommand_windowsCopyFileIfNewerDirDstQuoted()
+		test.isequal('xcopy /D /Y "src dir\\Core.dll" "dst dir\\Core.dll*"', os.translateCommandsAndPaths('{COPYFILEIFNEWER} %[src dir/Core.dll] %[dst dir/]', '.', '.', "windows"))
 	end
 
-	function suite.translateCommand_windowsCopyQuotes_ExtraSpace()
-		test.isequal('IF EXIST "a a"\\ (xcopy /Q /E /Y /I "a a" "b" > nul) ELSE (xcopy /Q /Y /I "a a" "b" > nul)', os.translateCommands('{COPY} "a a" "b" ', "windows"))
+	function suite.translateCommand_posixCopyFileIfNewer()
+		test.isequal('cp -u a b', os.translateCommands('{COPYFILEIFNEWER} a b', "posix"))
 	end
 
-	function suite.translateCommand_windowsCopyNoQuotesDst()
-		test.isequal('IF EXIST "a a"\\ (xcopy /Q /E /Y /I "a a" b > nul) ELSE (xcopy /Q /Y /I "a a" b > nul)', os.translateCommands('{COPY} "a a" b', "windows"))
+	function suite.translateCommand_posixCopyFileIfNewerWithSpaces()
+		test.isequal('cp -u "a a" "b b"', os.translateCommands('{COPYFILEIFNEWER} "a a" "b b"', "posix"))
 	end
 
-	function suite.translateCommand_windowsCopyNoQuotesDst_ExtraSpace()
-		test.isequal('IF EXIST "a a"\\ (xcopy /Q /E /Y /I "a a" b > nul) ELSE (xcopy /Q /Y /I "a a" b > nul)', os.translateCommands('{COPY} "a a" b ', "windows"))
+--
+-- os.translateCommand() LINKDIR/LINKFILE tests
+--
+	function suite.translateCommand_windowsLinkDir()
+		test.isequal('mklink /d a b', os.translateCommands('{LINKDIR} a b', "windows"))
 	end
 
-	function suite.translateCommand_windowsCopyNoQuotesSrc()
-		test.isequal('IF EXIST a\\ (xcopy /Q /E /Y /I a "b" > nul) ELSE (xcopy /Q /Y /I a "b" > nul)', os.translateCommands('{COPY} a "b"', "windows"))
+	function suite.translateCommand_windowsLinkFile()
+		test.isequal('mklink a b', os.translateCommands('{LINKFILE} a b', "windows"))
 	end
 
-	function suite.translateCommand_windowsCopyNoQuotesSrc_ExtraSpace()
-		test.isequal('IF EXIST a\\ (xcopy /Q /E /Y /I a "b" > nul) ELSE (xcopy /Q /Y /I a "b" > nul)', os.translateCommands('{COPY} a "b" ', "windows"))
+	function suite.translateCommand_posixLinkDir()
+		test.isequal('ln -s b a', os.translateCommands('{LINKDIR} a b', "posix"))
 	end
 
+	function suite.translateCommand_posixLinkFile()
+		test.isequal('ln -s b a', os.translateCommands('{LINKFILE} a b', "posix"))
+	end
+
+	function suite.translateCommand_posixLinkDirWithSpaces()
+		test.isequal('ln -s "b b" "a a"', os.translateCommands('{LINKDIR} "a a" "b b"', "posix"))
+	end
 --
 -- os.getWindowsRegistry windows tests
 --
@@ -373,37 +568,108 @@
 		test.isequal('cmdtool "../foo/path1" "../foo/path2/"', os.translateCommandsAndPaths("cmdtool %[path1] %[path2/]", '../foo', '.', 'osx'))
 	end
 
+	function suite.translateCommandsAndPaths_RelativePath()
+		test.isequal('cmdtool "path1" "../bar/path2/"', os.translateCommandsAndPaths("cmdtool %[../foo/path1] %[path2/]", './bar', './foo', 'osx'))
+	end
 
 --
 -- Helpers
 --
 
-	local tmpname = function()
-		local p = os.tmpname()
-		os.remove(p) -- just needed on POSIX
-		return p
+	-- Save the real function before test runner installs its stub.
+	local real_writefile_ifnotequal = os.writefile_ifnotequal
+
+	local function real_readfile(filepath)
+		local f = real_io_open(filepath, "rb")
+		if not f then return nil end
+		local content = f:read("*a")
+		f:close()
+		return content
 	end
 
-	local tmpfile = function()
-		local p = tmpname()
-		if os.ishost("windows") then
-			os.execute("type nul >" .. p)
-		else
-			os.execute("touch " .. p)
-		end
-		return p
+--
+-- os.writefile_ifnotequal() tests.
+--
+
+	function suite.writefile_ifnotequal_WritesNewFile()
+		local filepath = tmpname()
+		local content = "Hello, World!"
+		local ok, err = real_writefile_ifnotequal(content, filepath)
+		test.isequal(1, ok)
+		test.isnil(err)
+		test.istrue(os.isfile(filepath))
+		test.isequal(content, real_readfile(filepath))
+		os.remove(filepath)
 	end
 
-	local tmpdir = function()
-		local p = tmpname()
-		os.mkdir(p)
-		return p
+	function suite.writefile_ifnotequal_SkipsIdenticalContent()
+		local filepath = tmpname()
+		local content = "Identical content"
+		-- Write the file first
+		local ok1, err1 = real_writefile_ifnotequal(content, filepath)
+		test.isequal(1, ok1)
+		test.isnil(err1)
+		-- Try to write identical content
+		local ok2, err2 = real_writefile_ifnotequal(content, filepath)
+		test.isequal(0, ok2)
+		test.isnil(err2)
+		test.isequal(content, real_readfile(filepath))
+		os.remove(filepath)
 	end
 
+	function suite.writefile_ifnotequal_UpdatesWhenContentDiffers()
+		local filepath = tmpname()
+		local content1 = "First content"
+		local content2 = "Second content"
+		-- Write the file first
+		local ok1, err1 = real_writefile_ifnotequal(content1, filepath)
+		test.isequal(1, ok1)
+		test.isnil(err1)
+		-- Write different content
+		local ok2, err2 = real_writefile_ifnotequal(content2, filepath)
+		test.isequal(1, ok2)
+		test.isnil(err2)
+		test.isequal(content2, real_readfile(filepath))
+		os.remove(filepath)
+	end
+
+	function suite.writefile_ifnotequal_ReturnsError_OnInvalidPath()
+		local dir = tmpdir()
+		local ok, err = real_writefile_ifnotequal("Hello, World!", dir)
+		test.isequal(ok, -1) -- cannot write to dir
+		test.isequal("string", type(err))
+		test.isequal(err, "unable to write file to '" .. dir .. "'")
+		os.remove(dir)
+	end
 
 --
 -- os.remove() tests.
 --
+
+	function suite.remove_OnSymlink_RemovesLinkNotTarget()
+		-- Create a real file with content
+		local realfile = tmpfile()
+
+		-- Create a symlink pointing to the real file
+		local linkpath = tmpname()
+		os.linkfile(realfile, linkpath)
+
+		-- Verify setup
+		test.istrue(os.islink(linkpath))
+		test.istrue(os.isfile(realfile))
+
+		-- Remove the symlink - should remove only the link, not the target
+		test.istrue(os.remove(linkpath))
+
+		-- Symlink must be gone
+		test.isfalse(os.islink(linkpath))
+
+		-- Target file must still exist (link was not followed)
+		test.istrue(os.isfile(realfile))
+
+		-- Cleanup
+		os.remove(realfile)
+	end
 
 	function suite.remove_ReturnsError_OnNonExistingPath()
 		local ok, err, exitcode = os.remove(tmpname())
@@ -433,6 +699,26 @@
 -- os.rmdir() tests.
 --
 
+	function suite.rmdir_OnSymlink_RemovesLinkNotTarget()
+		-- Create a symlink pointing to folder/subfolder (which contains hello.txt)
+		test.istrue(os.linkdir("folder/subfolder", "folder/symlink_nofollow"))
+
+		-- Verify setup
+		test.istrue(os.islink("folder/symlink_nofollow"))
+		test.istrue(os.isfile("folder/subfolder/hello.txt"))
+
+		-- Remove the symlink - should remove only the link, not the target
+		test.istrue(os.rmdir("folder/symlink_nofollow"))
+
+		-- Symlink must be gone
+		test.isfalse(os.islink("folder/symlink_nofollow"))
+		test.isfalse(os.isdir("folder/symlink_nofollow"))
+
+		-- Target directory and its contents must still exist (link was not followed)
+		test.istrue(os.isdir("folder/subfolder"))
+		test.istrue(os.isfile("folder/subfolder/hello.txt"))
+	end
+
 	function suite.rmdir_ReturnsError_OnNonExistingPath()
 		local ok, err = os.rmdir(tmpname())
 		test.isnil(ok)
@@ -450,3 +736,54 @@
 		test.isequal(true, ok)
 		test.isnil(err)
 	end
+
+
+--
+-- os.getnumcpus() tests.
+--
+
+	function suite.numcpus()
+		local numcpus = os.getnumcpus()
+		test.istrue(numcpus > 0)
+	end
+
+
+--
+-- os.host() tests.
+--
+
+function suite.host()
+	local host = os.host()
+	test.istrue(string.len(host) > 0)
+
+	if _COSMOPOLITAN then
+		test.istrue(host ~= "cosmopolitan")
+	end
+end
+
+
+--
+-- os.hostarch() tests.
+--
+
+	function suite.hostarch()
+		local arch = os.hostarch()
+		test.istrue(string.len(arch) > 0)
+	end
+
+
+--
+-- os.targetarch() tests.
+--
+
+function suite.targetarch()
+	-- nil by default for backwards compatibility
+	test.isequal(nil, os.targetarch())
+
+	_TARGET_ARCH = "x64"
+	test.isequal(_TARGET_ARCH, os.targetarch())
+
+	-- --arch has priority over _TARGET_ARCH
+	_OPTIONS["arch"] = "AARCH64"
+	test.isequal(_OPTIONS["arch"], os.targetarch())
+end

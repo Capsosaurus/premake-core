@@ -1,21 +1,27 @@
 return {
 	-- Base API tests
+	"test_lua.lua",
+	"test_lua_unicode.lua",
 	"test_string.lua",
 	"base/test_aliasing.lua",
 	"base/test_binmodules.lua",
+	"base/test_config_getdefault.lua",
 	"base/test_configset.lua",
 	"base/test_context.lua",
 	"base/test_criteria.lua",
 	"base/test_detoken.lua",
+	"base/test_fileconfig.lua",
 	"base/test_include.lua",
 	"base/test_module_loader.lua",
 	"base/test_option.lua",
 	"base/test_os.lua",
+	"base/test_os_unicode.lua",
 	"base/test_override.lua",
 	"base/test_path.lua",
 	"base/test_premake_command.lua",
 	"base/test_table.lua",
 	"base/test_tree.lua",
+	"base/test_rule.lua",
 	"base/test_uuid.lua",
 	"base/test_versions.lua",
 	"base/test_http.lua",
@@ -42,11 +48,13 @@ return {
 	-- Baking tests
 	"oven/test_filtering.lua",
 	"oven/test_objdirs.lua",
+	"oven/test_usages.lua",
 
 	-- API tests
 	"api/test_boolean_kind.lua",
 	"api/test_containers.lua",
 	"api/test_directory_kind.lua",
+	"api/test_file_kind.lua",
 	"api/test_list_kind.lua",
 	"api/test_path_kind.lua",
 	"api/test_register.lua",
@@ -60,6 +68,16 @@ return {
 
 	-- -- Toolset tests
 	"tools/test_dotnet.lua",
+	"tools/test_emcc.lua",
 	"tools/test_gcc.lua",
+	"tools/test_clang.lua",
 	"tools/test_msc.lua",
+	"tools/test_enablepch.lua",
+	"tools/test_generateassembly.lua",
+	"tools/test_incrementallink.lua",
+	"tools/test_manifest.lua",
+	"tools/test_minimalrebuild.lua",
+	"tools/test_nodefaultlib.lua",
+	"tools/test_userelativelinks.lua",
+	"tools/test_wpf.lua",
 }

@@ -1,7 +1,7 @@
 --
 -- dotnet.lua
 -- Interface for the C# compilers, all of which are flag compatible.
--- Copyright (c) 2002-2013 Jason Perkins and the Premake project
+-- Copyright (c) 2002-2013 Jess Perkins and the Premake project
 --
 
 
@@ -11,6 +11,21 @@
 	local project = p.project
 	local config = p.config
 
+	p.api.register {
+		name = "csversion",
+		scope = "config",
+		kind = "string",
+	}
+
+	p.api.register {
+		name = "resourcegenerator",
+		scope = "project",
+		kind = "string",
+		allowed = {
+			"internal",
+			"public"
+		}
+	}
 
 --
 -- Examine the file and project configurations to glean additional
@@ -41,6 +56,8 @@
 		-- Determine the build action for the file, falling back to the file
 		-- extension if no explicit action is available.
 
+		local customprefix = "custom:"
+
 		if fcfg.buildaction == "Compile" or ext == ".cs" or ext == ".fs" then
 			info.action = "Compile"
 		elseif fcfg.buildaction == "Embed" or ext == ".resx" then
@@ -49,6 +66,8 @@
 			info.action = "Content"
 		elseif fcfg.buildaction == "Resource" then
 			info.action = "Resource"
+		elseif fcfg.buildaction ~= nil and fcfg.buildaction:startswith(customprefix) then
+			info.action = string.sub(fcfg.buildaction, #customprefix + 1)
 		elseif ext == ".xaml" then
 			if fcfg.buildaction == "Application" or path.getbasename(fname) == "App" then
 				if fcfg.project.kind == p.SHAREDLIB then
@@ -60,6 +79,9 @@
 				info.action = "Page"
 			end
 		else
+			if fcfg.buildaction ~= nil then
+				premake.warn("Unknown buildaction: " .. fcfg.buildaction .. " falling back to None")
+			end
 			info.action = "None"
 		end
 
@@ -132,11 +154,6 @@
 			   fcfg.buildaction == "UserControl"
 			then
 				info.SubType = fcfg.buildaction
-			end
-
-			-- This flag is deprecated, will remove eventually
-			if fcfg.flags and fcfg.flags.Component then
-				info.SubType = "Component"
 			end
 
 		end
@@ -286,7 +303,7 @@
 		table.insert(flags, '/noconfig')
 
 		if cfg.project.icon then
-			local fn = project.getrelative(cfg.project, cfg.project.icon)
+			local fn = p.tools.getrelative(cfg.project, cfg.project.icon)
 			table.insert(flags, string.format('/win32icon:"%s"', fn))
 		end
 

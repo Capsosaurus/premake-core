@@ -1,7 +1,7 @@
 --
 -- config.lua
 -- Premake configuration object API
--- Copyright (c) 2011-2015 Jason Perkins and the Premake project
+-- Copyright (c) 2011-2015 Jess Perkins and the Premake project
 --
 
 	local p = premake
@@ -44,26 +44,28 @@
 		local prefix = cfg[field.."prefix"] or cfg.targetprefix or ""
 		local suffix = cfg[field.."suffix"] or cfg.targetsuffix or ""
 		local extension = cfg[field.."extension"] or cfg.targetextension or ""
+		local bundleextension = cfg[field.."bundleextension"] or cfg.targetbundleextension or ""
 
 		local bundlename = ""
 		local bundlepath = ""
 
 		if table.contains(os.getSystemTags(cfg.system), "darwin") and (kind == p.WINDOWEDAPP or (kind == p.SHAREDLIB and cfg.sharedlibtype)) then
-			bundlename = basename .. extension
+			bundlename = basename .. bundleextension
 			bundlepath = path.join(bundlename, iif(kind == p.SHAREDLIB and cfg.sharedlibtype == "OSXFramework", "Versions/A", "Contents/MacOS"))
 		end
 
 		local info = {}
-		info.directory  = directory
-		info.basename   = basename .. suffix
-		info.name       = prefix .. info.basename .. extension
-		info.extension  = extension
-		info.abspath    = path.join(directory, info.name)
-		info.fullpath   = info.abspath
-		info.bundlename = bundlename
-		info.bundlepath = path.join(directory, bundlepath)
-		info.prefix     = prefix
-		info.suffix     = suffix
+		info.directory       = directory
+		info.basename        = basename .. suffix
+		info.name            = prefix .. info.basename .. extension
+		info.extension       = extension
+		info.bundleextension = bundleextension
+		info.abspath         = path.join(directory, info.name)
+		info.fullpath        = info.abspath
+		info.bundlename      = bundlename
+		info.bundlepath      = path.join(directory, bundlepath)
+		info.prefix          = prefix
+		info.suffix          = suffix
 		return info
 	end
 
@@ -150,9 +152,16 @@
 --
 
 	function config.canLinkIncremental(cfg)
+		-- Explicit "On" overrides all other checks
+		if cfg.incrementallink == p.ON then
+			return true
+		end
+		
 		if cfg.kind == "StaticLib"
 				or config.isOptimizedBuild(cfg)
-				or cfg.flags.NoIncrementalLink then
+				or cfg.incrementallink == p.OFF
+				or cfg.linktimeoptimization == p.ON
+				or cfg.linktimeoptimization == "Fast" then
 			return false
 		end
 		return true
@@ -183,6 +192,70 @@
 
 
 ---
+-- Return the default configuration for a workspace or project.
+--
+-- @param target
+--    The workspace or project object to query.
+-- @return
+--    The selected configuration, or nil if none are available.
+---
+
+	function config.getdefault(target)
+		local eachconfig = iif(target.project, project.eachconfig, p.workspace.eachconfig)
+		local defaultConfiguration = target.defaultconfiguration
+		local defaultPlatform = target.defaultplatform
+		local defaultConfigurationLower = type(defaultConfiguration) == "string" and defaultConfiguration:lower()
+		local defaultPlatformLower = type(defaultPlatform) == "string" and defaultPlatform:lower()
+		local configs = {}
+		local first
+		local bestConfiguration
+		local bestPlatform
+		local foundDefaultConfiguration = false
+		local foundDefaultPlatform = false
+
+		for cfg in eachconfig(target) do
+			table.insert(configs, cfg)
+		end
+
+		-- Match workspace configuration ordering regardless of target type.
+		table.sort(configs, function(a, b) return a.name < b.name end)
+
+		for _, cfg in ipairs(configs) do
+			first = first or cfg
+
+			local matchesConfiguration = defaultConfigurationLower and cfg.buildcfg and cfg.buildcfg:lower() == defaultConfigurationLower
+			local matchesPlatform = defaultPlatformLower and cfg.platform and cfg.platform:lower() == defaultPlatformLower
+
+			if matchesConfiguration then
+				foundDefaultConfiguration = true
+			end
+
+			if matchesPlatform then
+				foundDefaultPlatform = true
+			end
+
+			if matchesConfiguration and matchesPlatform then
+				return cfg
+			elseif not bestConfiguration and matchesConfiguration then
+				bestConfiguration = cfg
+			elseif not bestPlatform and matchesPlatform then
+				bestPlatform = cfg
+			end
+		end
+
+		if type(defaultConfiguration) == "string" and not foundDefaultConfiguration then
+			p.warnOnce("defaultconfiguration:" .. tostring(target) .. ":" .. defaultConfigurationLower, "defaultconfiguration '%s' does not match any configuration in '%s'", defaultConfiguration, target.name)
+		end
+
+		if type(defaultPlatform) == "string" and not foundDefaultPlatform then
+			p.warnOnce("defaultplatform:" .. tostring(target) .. ":" .. defaultPlatformLower, "defaultplatform '%s' does not match any platform in '%s'", defaultPlatform, target.name)
+		end
+
+		return bestConfiguration or bestPlatform or first
+	end
+
+
+---
 -- Retrieve linking information for a specific configuration. That is,
 -- the path information that is required to link against the library
 -- built by this configuration.
@@ -206,7 +279,7 @@
 		-- is provided, change the kind as import libraries are static.
 		local kind = cfg.kind
 		if project.isnative(cfg.project)  then
-			if cfg.system == p.WINDOWS and kind == p.SHAREDLIB and not cfg.flags.NoImportLib then
+			if cfg.system == p.WINDOWS and kind == p.SHAREDLIB and cfg.useimportlib ~= p.OFF then
 				kind = p.STATICLIB
 			end
 		end
@@ -244,14 +317,14 @@
 --    An array containing the requested link target information.
 --
 
-	function config.getlinks(cfg, kind, part, linkage)
+	function config.getlinks(cfg, kind, part, linkage, drop_wholearchive)
 		local result = {}
 
 		-- If I'm building a list of link directories, include libdirs
 
 		if part == "directory" then
 			table.foreachi(cfg.libdirs, function(dir)
-				table.insert(result, project.getrelative(cfg.project, dir))
+				table.insert(result, p.tools.getrelative(cfg.project, dir))
 			end)
 		end
 
@@ -262,69 +335,132 @@
 			local link = cfg.links[i]
 			local item
 
-			-- Sort the links into "sibling" (is another project in this same
-			-- workspace) and "system" (is not part of this workspace) libraries.
+			-- Strip linking decorators from link, to determine if the link
+			-- is a "sibling" project.
+			local name = link
+			if name:endswith(":static") or name:endswith(":shared") then
+				name = string.sub(name, 0, -8)
+			end
 
-			local prj = p.workspace.findproject(cfg.workspace, link)
-			if prj and kind ~= "system" then
+			local is_wholearchive = false
+			if drop_wholearchive and cfg.wholearchive then
+				for _, wa in ipairs(cfg.wholearchive) do
+					if type(wa) == "string" and (wa == name or wa == link) then
+						is_wholearchive = true
+						break
+					end
+				end
+			end
 
-				-- Sibling; is there a matching configuration in this project that
-				-- is compatible with linking to me?
+			if kind == "dependencies" or not is_wholearchive then
 
-				local prjcfg = project.getconfig(prj, cfg.buildcfg, cfg.platform)
-				if prjcfg and (kind == "dependencies" or config.canLink(cfg, prjcfg)) then
+				-- Sort the links into "sibling" (is another project in this same
+				-- workspace) and "system" (is not part of this workspace) libraries.
 
-					-- Yes; does the caller want the whole project config or only part?
-					if part == "object" then
-						item = prjcfg
-					else
-						item = project.getrelative(cfg.project, prjcfg.linktarget.fullpath)
+				local prj = p.workspace.findproject(cfg.workspace, name)
+				if prj and kind ~= "system" then
+
+					-- Sibling; is there a matching configuration in this project that
+					-- is compatible with linking to me?
+
+					local prjcfg = project.getconfig(prj, cfg.buildcfg, cfg.platform)
+					if prjcfg and (kind == "dependencies" or config.canLink(cfg, prjcfg)) then
+
+						-- Yes; does the caller want the whole project config or only part?
+						if part == "object" then
+							item = prjcfg
+						else
+							item = p.tools.getrelative(cfg.project, prjcfg.linktarget.fullpath)
+						end
+
+					end
+
+				elseif not prj and (kind == "system" or kind == "all") then
+
+					-- Make sure this library makes sense for the requested linkage; don't
+					-- link managed .DLLs into unmanaged code, etc.
+
+					if config.canLink(cfg, link, linkage) then
+						-- if the target is listed via an explicit path (i.e. not a
+						-- system library or assembly), make it project-relative
+						item = link
+						if item:find("/", nil, true) then
+							item = p.tools.getrelative(cfg.project, item)
+						end
 					end
 
 				end
 
-			elseif not prj and (kind == "system" or kind == "all") then
-
-				-- Make sure this library makes sense for the requested linkage; don't
-				-- link managed .DLLs into unmanaged code, etc.
-
-				if config.canLink(cfg, link, linkage) then
-					-- if the target is listed via an explicit path (i.e. not a
-					-- system library or assembly), make it project-relative
-					item = link
-					if item:find("/", nil, true) then
-						item = project.getrelative(cfg.project, item)
+				-- If this is something I can link against, pull out the requested part
+				-- don't link against my self
+				if item and item ~= cfg then
+					if part == "directory" then
+						item = path.getdirectory(item)
+						if item == "." then
+							item = nil
+						end
+					elseif part == "name" then
+						item = path.getname(item)
+					elseif part == "basename" then
+						item = path.getbasename(item)
+					elseif type(part) == "function" then
+						part(link, item)
 					end
 				end
 
-			end
+				-- Add it to the list, skipping duplicates
 
-			-- If this is something I can link against, pull out the requested part
-			-- dont link against my self
-			if item and item ~= cfg then
-				if part == "directory" then
-					item = path.getdirectory(item)
-					if item == "." then
-						item = nil
-					end
-				elseif part == "name" then
-					item = path.getname(item)
-				elseif part == "basename" then
-					item = path.getbasename(item)
-				elseif type(part) == "function" then
-					part(link, item)
+				if item and not table.contains(result, item) then
+					table.insert(result, item)
 				end
+
 			end
-
-			-- Add it to the list, skipping duplicates
-
-			if item and not table.contains(result, item) then
-				table.insert(result, item)
-			end
-
 		end
 
 		return result
+	end
+
+--
+-- Return list of (non-decorated) wholearchive fullpath
+--
+
+	function config.getwholearchive(cfg)
+		local getfullpath = function(libraryname)
+			local prj = p.workspace.findproject(cfg.workspace, libraryname)
+			local prjcfg = prj and project.getconfig(prj, cfg.buildcfg, cfg.platform)
+			if prj and config.canLink(cfg, prjcfg) then -- is sibling project
+				return p.tools.getrelative(cfg.project, prjcfg.linktarget.fullpath)
+			else
+				if path.isabsolute(libraryname) then
+					return libraryname
+				else
+					return p.tools.getrelative(cfg.project, libraryname)
+				end
+			end
+		end
+		return table.translate(cfg.wholearchive, getfullpath)
+	end
+
+--
+-- Returns the list of sibling target directories
+--
+-- @param cfg
+--    The configuration object to query.
+-- @return
+--    Absolute path list
+--
+	function config.getsiblingtargetdirs(cfg)
+		local paths = {}
+		for _, sibling in ipairs(config.getlinks(cfg, "dependencies", "object")) do
+			if (sibling.kind == p.SHAREDLIB) then
+				local p = sibling.linktarget.directory
+				if not (table.contains(paths, p)) then
+					table.insert(paths, p)
+				end
+			end
+		end
+
+		return paths
 	end
 
 
@@ -412,7 +548,7 @@
 --
 
 	function config.isCopyLocal(cfg, linkname, default)
-		if cfg.flags.NoCopyLocal then
+		if cfg.allowcopylocal == p.OFF then
 			return false
 		end
 
@@ -541,7 +677,7 @@
 				-- result if the corresponding value is not present
 
 				for key, replacement in pairs(map) do
-					if #key > 1 and key:startswith("_") then
+					if type(key) == "string" and #key > 1 and key:startswith("_") then
 						key = key:sub(2)
 						if values[key] == nil then
 							add(replacement)
